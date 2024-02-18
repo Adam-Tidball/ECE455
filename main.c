@@ -134,6 +134,9 @@ These two hook functions are provided as examples, but do not contain any
 functionality.
 */
 
+// PROJECT TRAFFIC LIGHT
+
+
 /* Standard includes. */
 #include <stdint.h>
 #include <stdio.h>
@@ -181,20 +184,20 @@ static void Amber_LED_Controller_Task( void *pvParameters );
 xQueueHandle xQueue_handle = 0;
 
 
+
 /*-----------------------------------------------------------*/
 
 int main(void)
 {
 
-	/* Initialize LEDs */
-	STM_EVAL_LEDInit(amber_led);
-	STM_EVAL_LEDInit(green_led);
-	STM_EVAL_LEDInit(red_led);
-	STM_EVAL_LEDInit(blue_led);
-
 	/* Configure the system ready to run the demo.  The clock configuration
 	can be done here if it was not done before main() was called. */
 	prvSetupHardware();
+
+	// Test
+	GPIO_SetBits(GPIOB,GPIO_Pin_3);
+	GPIO_SetBits(GPIOB,GPIO_Pin_4);
+	GPIO_SetBits(GPIOB,GPIO_Pin_5);
 
 
 	/* Create the queue used by the queue send and queue receive tasks.
@@ -422,5 +425,44 @@ static void prvSetupHardware( void )
 
 	/* TODO: Setup the clocks, etc. here, if they were not configured before
 	main() was called. */
+
+
+	/*
+	 *     GPIO and ADC Setup
+	 */
+
+
+	// GPIO SETUP FOR TRAFFIC LIGHTS
+		// Enable Clock
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE); // AHB High speed bus for GPIOB ports
+		// GPIO Definition
+	GPIO_InitTypeDef TrafficLight_GPIO_InitStruct;
+	TrafficLight_GPIO_InitStruct.GPIO_Pin = GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_5;  // Pins for Red, Yellow, & Green Lights
+	TrafficLight_GPIO_InitStruct.GPIO_Mode = GPIO_Mode_OUT; // Set Out bc LEDS are output
+	TrafficLight_GPIO_InitStruct.GPIO_OType = GPIO_OType_PP; // High is pushed to VCC, low is pulled to GND
+	TrafficLight_GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_NOPULL; // No switch
+	TrafficLight_GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz; // High speed for LEDs
+		// GPIO Init
+	GPIO_Init(GPIOB, &TrafficLight_GPIO_InitStruct);
+
+
+	// GPIO SETUP FOR SHIFT REG
+		// Enable Clock
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
+		// GPIO Definition
+	GPIO_InitTypeDef ShiftReg_GPIO_InitStruct;
+	ShiftReg_GPIO_InitStruct.GPIO_Pin = GPIO_Pin_9;  // Data Pin
+	ShiftReg_GPIO_InitStruct.GPIO_Mode = GPIO_Mode_OUT; // Set Out bc shift registers are output
+	ShiftReg_GPIO_InitStruct.GPIO_OType = GPIO_OType_PP; // High is pushed to VCC, low is pulled to GND
+	ShiftReg_GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_NOPULL; // No switch
+	ShiftReg_GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz; // High speed for shift registers
+		// GPIO Init
+	GPIO_Init(GPIOC, &ShiftReg_GPIO_InitStruct);
+
+	// ADC Setup for Potentiometer
+		// Enable Clock
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
+
+
 }
 
