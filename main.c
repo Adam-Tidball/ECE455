@@ -265,27 +265,12 @@ static void Manager_Task( void *pvParameters )
 
 static void Traffic_Flow_Adjustment_Task( void *pvParameters )
 {
-	uint16_t rx_data;
+	//Read value from Pot and update the global variable for traffic flow rate
 	while(1)
 	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == blue)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(blue_led);
-				printf("Blue Off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("BlueTask GRP (%u).\n", rx_data); // Got wwrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
+
 	}
+
 }
 
 
@@ -293,6 +278,9 @@ static void Traffic_Flow_Adjustment_Task( void *pvParameters )
 
 static void Traffic_Generator_Task( void *pvParameters )
 {
+	// Based on the value changed by the Traffic Flow Adjustment Task 
+	// create a chance of generating a car
+
 	uint16_t rx_data;
 	while(1)
 	{
@@ -320,6 +308,9 @@ static void Traffic_Generator_Task( void *pvParameters )
 
 static void Traffic_Light_State_Task( void *pvParameters )
 {
+
+	//Cycle through light states based on a timer.
+	// Update light state Global variable 
 	uint16_t rx_data;
 	while(1)
 	{
