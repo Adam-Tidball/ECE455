@@ -435,34 +435,50 @@ static void prvSetupHardware( void )
 	// GPIO SETUP FOR TRAFFIC LIGHTS
 		// Enable Clock
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE); // AHB High speed bus for GPIOB ports
-		// GPIO Definition
+		// GPIO Init (configurations)
 	GPIO_InitTypeDef TrafficLight_GPIO_InitStruct;
 	TrafficLight_GPIO_InitStruct.GPIO_Pin = GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_5;  // Pins for Red, Yellow, & Green Lights
 	TrafficLight_GPIO_InitStruct.GPIO_Mode = GPIO_Mode_OUT; // Set Out bc LEDS are output
 	TrafficLight_GPIO_InitStruct.GPIO_OType = GPIO_OType_PP; // High is pushed to VCC, low is pulled to GND
 	TrafficLight_GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_NOPULL; // No switch
 	TrafficLight_GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz; // High speed for LEDs
-		// GPIO Init
+		// GPIO Init (call)
 	GPIO_Init(GPIOB, &TrafficLight_GPIO_InitStruct);
 
 
 	// GPIO SETUP FOR SHIFT REG
 		// Enable Clock
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
-		// GPIO Definition
+		// GPIO Init (configurations)
 	GPIO_InitTypeDef ShiftReg_GPIO_InitStruct;
 	ShiftReg_GPIO_InitStruct.GPIO_Pin = GPIO_Pin_9;  // Data Pin
 	ShiftReg_GPIO_InitStruct.GPIO_Mode = GPIO_Mode_OUT; // Set Out bc shift registers are output
 	ShiftReg_GPIO_InitStruct.GPIO_OType = GPIO_OType_PP; // High is pushed to VCC, low is pulled to GND
 	ShiftReg_GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_NOPULL; // No switch
 	ShiftReg_GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz; // High speed for shift registers
-		// GPIO Init
+		// GPIO Init (call)
 	GPIO_Init(GPIOC, &ShiftReg_GPIO_InitStruct);
 
-	// ADC Setup for Potentiometer
-		// Enable Clock
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
-
+	// ADC SETUP FOR POTENTIOMETER
+		// Enable Clocks (GPIO and ADC)
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE); // High Speed Bus for ports
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE); // Peripheral Bus for ADC
+		// Set the GPIO Pin the ADC will use (8.3.12)
+	GPIO_InitTypeDef ADC_Pin_GPIO_InitStruct;
+	ADC_Pin_GPIO_InitStruct.GPIO_Pin = GPIO_Pin_???; 
+	ADC_Pin_GPIO_InitStruct.GPIO_Mode = GPIO_Mode_An; // Set this pin for analog data
+		// ADC_Init (configurations)
+	ADC_InitTypeDef ADC_InitStruct;
+	ADC_InitStruct.ADC_ContinuousConvMode = ENABLE; // Conv done without extrenal triggers
+	ADC_InitStruct.ADC_DataAlign = ???; // Data align 
+	ADC_InitStruct.ADC_Resolution = ???; // Resolution
+	ADC_InitStruct.ADC_ScanConvMode = DISABLE;  // Only need to scan one channel 
+	ADC_InitStruct.ADC_ExternalTrigConv = DISABLE; // Dont need bc ContinuousConvMode is on
+		// ADC_Init (call)
+	ADC_Init(ADC1, &ADC_InitStruct);
+		// ADC_Cmd and Channel Config
+	ADC_Cmd(ADC1, ENABLE);
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_3Cycles​); //
 
 }
 
