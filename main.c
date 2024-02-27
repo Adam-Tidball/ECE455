@@ -199,6 +199,10 @@ int main(void)
 	GPIO_SetBits(GPIOB,GPIO_Pin_4);
 	GPIO_SetBits(GPIOB,GPIO_Pin_5);
 
+		//ADC 
+	ADC_SoftwareStartConv(ADC1);​
+	ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC);
+	​ADC_GetConversionValue(ADC1);
 
 	/* Create the queue used by the queue send and queue receive tasks.
 	http://www.freertos.org/a00116.html */
@@ -463,22 +467,23 @@ static void prvSetupHardware( void )
 		// Enable Clocks (GPIO and ADC)
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE); // High Speed Bus for ports
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE); // Peripheral Bus for ADC
-		// Set the GPIO Pin the ADC will use (8.3.12)
+		// GPIO Pin configuration (8.3.12)
 	GPIO_InitTypeDef ADC_Pin_GPIO_InitStruct;
 	ADC_Pin_GPIO_InitStruct.GPIO_Pin = GPIO_Pin_???; 
 	ADC_Pin_GPIO_InitStruct.GPIO_Mode = GPIO_Mode_An; // Set this pin for analog data
 		// ADC_Init (configurations)
 	ADC_InitTypeDef ADC_InitStruct;
 	ADC_InitStruct.ADC_ContinuousConvMode = ENABLE; // Conv done without extrenal triggers
-	ADC_InitStruct.ADC_DataAlign = ???; // Data align 
-	ADC_InitStruct.ADC_Resolution = ???; // Resolution
+	ADC_InitStruct.ADC_DataAlign = ???; // Data align (assume right? ADC_DataAlign_Right)
+	ADC_InitStruct.ADC_Resolution = ADC_Resolution_6b; // Lower resolution = fewer clk cycles (12, 10, 8, or 6) 
 	ADC_InitStruct.ADC_ScanConvMode = DISABLE;  // Only need to scan one channel 
 	ADC_InitStruct.ADC_ExternalTrigConv = DISABLE; // Dont need bc ContinuousConvMode is on
-		// ADC_Init (call)
+		// GPIO & ADC_Init (calls)
+	GPIO_Init(GPIOA, &ADC_Pin_GPIO_InitStruct);
 	ADC_Init(ADC1, &ADC_InitStruct);
 		// ADC_Cmd and Channel Config
 	ADC_Cmd(ADC1, ENABLE);
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_3Cycles​); //
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_3Cycles​); // NOTE: can test dif sample times
 
 }
 
