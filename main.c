@@ -176,10 +176,10 @@ static void prvSetupHardware( void );
  * this file.
  */
 static void Manager_Task( void *pvParameters );
-static void Blue_LED_Controller_Task( void *pvParameters );
-static void Green_LED_Controller_Task( void *pvParameters );
-static void Red_LED_Controller_Task( void *pvParameters );
-static void Amber_LED_Controller_Task( void *pvParameters );
+static void Traffic_Flow_Adjustment_Task( void *pvParameters );
+static void Traffic_Generator_Task( void *pvParameters );
+static void Traffic_Light_State_Task( void *pvParameters );
+static void System_Display_Task( void *pvParameters );
 
 xQueueHandle xQueue_handle = 0;
 
@@ -199,10 +199,13 @@ int main(void)
 	GPIO_SetBits(GPIOB,GPIO_Pin_4);
 	GPIO_SetBits(GPIOB,GPIO_Pin_5);
 
-		//ADC 
+		//ADC test
+	unint16_t = pot_val; 
 	ADC_SoftwareStartConv(ADC1);​
 	ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC);
-	​ADC_GetConversionValue(ADC1);
+	ADC val = ADC_GetConversionValue(ADC1);
+	printf("Pot: %d\n", adc_value);
+	vTaskDelay(250);
 
 	/* Create the queue used by the queue send and queue receive tasks.
 	http://www.freertos.org/a00116.html */
@@ -213,10 +216,10 @@ int main(void)
 	vQueueAddToRegistry( xQueue_handle, "MainQueue" );
 
 	xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-	xTaskCreate( Blue_LED_Controller_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Red_LED_Controller_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Green_LED_Controller_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Amber_LED_Controller_Task, "Amber_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Traffic_Flow_Adjustment_Task, "TFA", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Traffic_Generator_Task, "TFG", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Traffic_Light_State_Task, "TLS", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( System_Display_Task, "SD", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -260,7 +263,7 @@ static void Manager_Task( void *pvParameters )
 
 /*-----------------------------------------------------------*/
 
-static void Blue_LED_Controller_Task( void *pvParameters )
+static void Traffic_Flow_Adjustment_Task( void *pvParameters )
 {
 	uint16_t rx_data;
 	while(1)
@@ -288,7 +291,7 @@ static void Blue_LED_Controller_Task( void *pvParameters )
 
 /*-----------------------------------------------------------*/
 
-static void Green_LED_Controller_Task( void *pvParameters )
+static void Traffic_Generator_Task( void *pvParameters )
 {
 	uint16_t rx_data;
 	while(1)
@@ -315,7 +318,7 @@ static void Green_LED_Controller_Task( void *pvParameters )
 
 /*-----------------------------------------------------------*/
 
-static void Red_LED_Controller_Task( void *pvParameters )
+static void Traffic_Light_State_Task( void *pvParameters )
 {
 	uint16_t rx_data;
 	while(1)
@@ -343,7 +346,7 @@ static void Red_LED_Controller_Task( void *pvParameters )
 
 /*-----------------------------------------------------------*/
 
-static void Amber_LED_Controller_Task( void *pvParameters )
+static void System_Display_Task( void *pvParameters )
 {
 	uint16_t rx_data;
 	while(1)
