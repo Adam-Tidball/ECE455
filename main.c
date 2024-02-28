@@ -151,18 +151,9 @@ functionality.
 
 
 
+
 /*-----------------------------------------------------------*/
 #define mainQUEUE_LENGTH 100
-
-#define amber  	0
-#define green  	1
-#define red  	2
-#define blue  	3
-
-#define amber_led	LED3
-#define green_led	LED4
-#define red_led		LED5
-#define blue_led	LED6
 
 
 /*
@@ -175,7 +166,6 @@ static void prvSetupHardware( void );
  * The queue send and receive tasks as described in the comments at the top of
  * this file.
  */
-static void Manager_Task( void *pvParameters );
 static void Traffic_Flow_Adjustment_Task( void *pvParameters );
 static void Traffic_Generator_Task( void *pvParameters );
 static void Traffic_Light_State_Task( void *pvParameters );
@@ -183,10 +173,32 @@ static void System_Display_Task( void *pvParameters );
 
 xQueueHandle xQueue_handle = 0;
 
+//mutexes for global variables
+xMutexPotValue = xSemaphoreCreateMutex(uint8_t);
+xMutexTrafficLightState = xSemaphoreCreateMutex();
+xMutexNewCar = xSemaphoreCreateMutex();
+
+xSemaphoreGive(xMutexPotValue);
+xSemaphoreGive(xMutexTrafficLightState);
+xSemaphoreGive(xMutexNewCar);
+
+// create timers - TODO
+greenLightTime = xTimerCreate();
+redLightTime = xTimerCreate();
+
+
+
 // Global Variables
 uint16_t pot_val = 0;
-uint16_t new_car = 0;
-uint16_t traffic_light_state = 0; // 0 is green, 1 is yellow, 2 is red
+uint16_t new_car = 0; // next start of first queue
+uint16_t last_1 = 0; // next start of second queue
+uint16_t last_2 = 0; // next start of third queue
+uint16_t traffic_light_state = 1; // 0 is green, 1 is yellow, 2 is red
+car_queue_1 = xQueueCreate(8, sizeof( uint16_t )); //stopping queue
+car_queue_2 = xQueueCreate(3, sizeof( uint16_t )); // continue on yellow
+car_queue_3 = xQueueCreate(6, sizeof( uint16_t )); // after lights
+
+//^^ these are actually x queues
 
 
 /*-----------------------------------------------------------*/
@@ -199,9 +211,14 @@ int main(void)
 	prvSetupHardware();
 
 	// Test
-	GPIO_SetBits(GPIOB,GPIO_Pin_3); //Red
-	GPIO_SetBits(GPIOB,GPIO_Pin_4); //Green
-	GPIO_SetBits(GPIOB,GPIO_Pin_5); //Yellow
+//	GPIO_SetBits(GPIOB,GPIO_Pin_3); //Red
+//	GPIO_SetBits(GPIOB,GPIO_Pin_4); //Green
+//	GPIO_SetBits(GPIOB,GPIO_Pin_5); //Yellow
+
+	GPIO_Write(GPIOC,0b111); //SR write
+	GPIO_SetBits(GPIOC,GPIO_Pin_9); //SR set bits
+	GPIO_SetBits(GPIOC,GPIO_Pin_8); //SR clock set
+	GPIO_ResetBits(GPIOC,GPIO_Pin_8); //SR clock reset
 
 
 	/* Create the queue used by the queue send and queue receive tasks.
@@ -212,7 +229,6 @@ int main(void)
 	/* Add to the registry, for the benefit of kernel aware debugging. */
 	vQueueAddToRegistry( xQueue_handle, "MainQueue" );
 
-	xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 	xTaskCreate( Traffic_Flow_Adjustment_Task, "TFA", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( Traffic_Generator_Task, "TFG", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( Traffic_Light_State_Task, "TLS", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
@@ -221,42 +237,19 @@ int main(void)
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
 
+//
+//	traffic_light_state = 0;
+//	sleep(4);
+//	traffic_light_state = 1;
+//	sleep(4);
+//	traffic_light_state = 2;
+//	sleep(4);
+
+
 	return 0;
 }
 
 
-/*-----------------------------------------------------------*/
-
-static void Manager_Task( void *pvParameters )
-{
-	uint16_t tx_data = amber;
-
-
-	while(1)
-	{
-
-		if(tx_data == amber)
-			STM_EVAL_LEDOn(amber_led);
-		if(tx_data == green)
-			STM_EVAL_LEDOn(green_led);
-		if(tx_data == red)
-			STM_EVAL_LEDOn(red_led);
-		if(tx_data == blue)
-			STM_EVAL_LEDOn(blue_led);
-
-		if( xQueueSend(xQueue_handle,&tx_data,1000))
-		{
-			printf("Manager: %u ON!\n", tx_data);
-			if(++tx_data == 4)
-				tx_data = 0;
-			vTaskDelay(1000);
-		}
-		else
-		{
-			printf("Manager Failed!\n");
-		}
-	}
-}
 
 /*-----------------------------------------------------------*/
 
@@ -265,20 +258,21 @@ static void Traffic_Flow_Adjustment_Task( void *pvParameters )
 	//Read value from Pot and update the global variable for traffic flow rate
 	while(1)
 	{
+		if (xSemaphoreTake(xMutexPotValue)) {
+			//Read from the Pot (values range from 0 to 61)
+			ADC_SoftwareStartConv(ADC1);
+			ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC);
+			pot_val = ADC_GetConversionValue(ADC1);
 
-		//Read from the Pot (values range from 0 to 61)
-		ADC_SoftwareStartConv(ADC1);
-		ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC);
-		pot_val = ADC_GetConversionValue(ADC1);
+			//make sure that the pot value is greater than zero
+			if(0 == pot_val){
+				pot_val = 1;
+			}
 
-		//make sure that the pot value is greater than zero
-		if(0 == pot_val){
-			pot_val = 1;
+			printf("pot value: %d\n",pot_val);
+			vTaskDelay(250);
+			xSemaphoreGive(xMutexPotValue);
 		}
-
-		printf("pot value: %d\n",pot_val);
-		vTaskDelay(250);
-
 	}
 
 }
@@ -293,18 +287,23 @@ static void Traffic_Generator_Task( void *pvParameters )
 
 	while(1)
 	{
-		// Generate a random value between 0 and 90
-		uint16_t rand_val = 0;
-		rand_val = rand() % 90;
+		if (xSemaphoreTake(xMutexPotValue) && xSemaphoreTake(xMutexNewCar)) {
+			// Generate a random value between 0 and 90
+			uint16_t rand_val = 0;
+			rand_val = rand() % 90;
 
-		// If the random value is less than the pot create a new car
-		// NOTE: the greater the pot_value the heavier the traffic flow
-		if( rand_val <= pot_val){
-			new_car = 1;
-		} else {
-			new_car = 0;
+			// If the random value is less than the pot create a new car
+			// NOTE: the greater the pot_value the heavier the traffic flow
+			if( rand_val <= pot_val){
+				new_car = 1;
+			} else {
+				new_car = 0;
+			}
+
+			vTaskDelay(250);
+			xSemaphoreGive(xMutexPotValue);
+			xSemaphoreGive(xMutexNewCar);
 		}
-
 	}
 }
 
@@ -315,27 +314,47 @@ static void Traffic_Light_State_Task( void *pvParameters )
 
 	//Cycle through light states based on a timer.
 	// Update light state Global variable
-	uint16_t rx_data;
-	while(1)
-	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == red)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(red_led);
-				printf("Red off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("RedTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
+
+	uint16_t wait_time_val = 0;
+	uint16_t wait_time_scalar = 0;
+	printf("test %d", traffic_light_state);
+
+	if(traffic_light_state == 2){
+		//Here if the light is currently red
+
+		//wait red light time (TODO use redlight timer)
+		wait_time_scalar = pot_val / 10; // will result in a scalar from 0 to 6
+		wait_time_scalar = wait_time_scalar * 100; // convert into seconds
+		wait_time_val = wait_time_scalar + 200; // add 2 seconds so the wait is at least that
+		vTaskDelay(wait_time_val);
+
+		//update light to green
+		traffic_light_state = 0;
+
+	} else if(traffic_light_state == 1){
+		//Here if the light is currently yellow
+
+		//wait constant time
+		vTaskDelay(300); // 3 seconds
+
+		//update light to red
+		traffic_light_state = 2;
+
+	} else {
+		//Here if the light is currently green
+
+		//wait green light time (TODO use greenlight timer)
+		wait_time_scalar = pot_val / 10; // will result in a scalar from 0 to 6
+		wait_time_scalar = wait_time_scalar * 100; // convert into seconds
+		wait_time_val = wait_time_scalar + 200; // add 2 seconds so the wait is at least that
+		vTaskDelay(wait_time_val);
+
+		//update light to yellow
+		traffic_light_state = 1;
+
 	}
+
+
 }
 
 
@@ -343,25 +362,39 @@ static void Traffic_Light_State_Task( void *pvParameters )
 
 static void System_Display_Task( void *pvParameters )
 {
-	uint16_t rx_data;
+	static void shift_queue(queue, first_bit){
+		for(int i = length(queue) - 1; i > 0; i--){
+			queue[i] = queue[i-1];
+		}
+		queue[0] = first_bit;
+
+	}
+
+
 	while(1)
 	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == amber)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(amber_led);
-				printf("Amber Off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("AmberTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
+		if (traffic_light_state == 0) { //green
+			GPIO_ResetBits(GPIOB,GPIO_Pin_3); //Red
+			GPIO_SetBits(GPIOB,GPIO_Pin_4); //Green
+			GPIO_ResetBits(GPIOB,GPIO_Pin_5); //Yellow
+
+			shift_queue(car_queue_1, new_car); //shift queue 1
+			shift_queue(car_queue_2, last_1); //shift queue 2
+			shift_queue(car_queue_3, last_2); //shift queue 3
+
+		}
+		else if (traffic_light_state == 1) { //yellow
+			GPIO_ResetBits(GPIOB,GPIO_Pin_3); //Red
+			GPIO_ResetBits(GPIOB,GPIO_Pin_4); //Green
+			GPIO_SetBits(GPIOB,GPIO_Pin_5); //Yellow
+			shift_queue(car_queue_2, last_1); //shift queue 2
+			shift_queue(car_queue_3, last_2); //shift queue 3
+		}
+		else if (traffic_light_state == 2) { //red
+			GPIO_SetBits(GPIOB,GPIO_Pin_3); //Red
+			GPIO_ResetBits(GPIOB,GPIO_Pin_4); //Green
+			GPIO_ResetBits(GPIOB,GPIO_Pin_5); //Yellow
+			shift_queue(car_queue_3, last_2); //shift queue 3
 		}
 	}
 }
