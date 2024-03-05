@@ -325,6 +325,7 @@ static void Traffic_Light_State_Task( void *pvParameters )
 		//wait red light time (TODO use redlight timer)
 		wait_time_scalar = pot_val / 10; // will result in a scalar from 0 to 6
 		wait_time_scalar = wait_time_scalar * 100; // convert into seconds
+		wait_time_scalar = 600 - wait_time_scalar; // take the inverse (opposite of green light)
 		wait_time_val = wait_time_scalar + 200; // add 2 seconds so the wait is at least that
 		vTaskDelay(wait_time_val);
 
