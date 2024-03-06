@@ -134,9 +134,6 @@ These two hook functions are provided as examples, but do not contain any
 functionality.
 */
 
-// PROJECT TRAFFIC LIGHT
-
-
 /* Standard includes. */
 #include <stdint.h>
 #include <stdio.h>
@@ -176,19 +173,24 @@ static void prvSetupHardware( void );
  * this file.
  */
 static void Manager_Task( void *pvParameters );
-static void Traffic_Flow_Adjustment_Task( void *pvParameters );
-static void Traffic_Generator_Task( void *pvParameters );
-static void Traffic_Light_State_Task( void *pvParameters );
-static void System_Display_Task( void *pvParameters );
+static void Blue_LED_Controller_Task( void *pvParameters );
+static void Green_LED_Controller_Task( void *pvParameters );
+static void Red_LED_Controller_Task( void *pvParameters );
+static void Amber_LED_Controller_Task( void *pvParameters );
 
 xQueueHandle xQueue_handle = 0;
-
 
 
 /*-----------------------------------------------------------*/
 
 int main(void)
 {
+
+	/* Initialize LEDs */
+	STM_EVAL_LEDInit(amber_led);
+	STM_EVAL_LEDInit(green_led);
+	STM_EVAL_LEDInit(red_led);
+	STM_EVAL_LEDInit(blue_led);
 
 	/* Configure the system ready to run the demo.  The clock configuration
 	can be done here if it was not done before main() was called. */
@@ -204,10 +206,10 @@ int main(void)
 	vQueueAddToRegistry( xQueue_handle, "MainQueue" );
 
 	xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-	xTaskCreate( Traffic_Flow_Adjustment_Task, "TFA", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Traffic_Generator_Task, "TFG", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Traffic_Light_State_Task, "TLS", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( System_Display_Task, "SD", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Blue_LED_Controller_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Red_LED_Controller_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Green_LED_Controller_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Amber_LED_Controller_Task, "Amber_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -251,9 +253,8 @@ static void Manager_Task( void *pvParameters )
 
 /*-----------------------------------------------------------*/
 
-static void Traffic_Flow_Adjustment_Task( void *pvParameters )
+static void Blue_LED_Controller_Task( void *pvParameters )
 {
-
 	uint16_t rx_data;
 	while(1)
 	{
@@ -263,29 +264,25 @@ static void Traffic_Flow_Adjustment_Task( void *pvParameters )
 			{
 				vTaskDelay(250);
 				STM_EVAL_LEDOff(blue_led);
-				printf("Blue off.\n");
+				printf("Blue Off.\n");
 			}
 			else
 			{
 				if( xQueueSend(xQueue_handle,&rx_data,1000))
 					{
-						printf("BlueTask GRP (%u).\n", rx_data); // Got wrong Package
+						printf("BlueTask GRP (%u).\n", rx_data); // Got wwrong Package
 						vTaskDelay(500);
 					}
 			}
 		}
 	}
-
 }
 
 
 /*-----------------------------------------------------------*/
 
-static void Traffic_Generator_Task( void *pvParameters )
+static void Green_LED_Controller_Task( void *pvParameters )
 {
-	// Based on the value changed by the Traffic Flow Adjustment Task
-	// create a chance of generating a car
-
 	uint16_t rx_data;
 	while(1)
 	{
@@ -311,11 +308,8 @@ static void Traffic_Generator_Task( void *pvParameters )
 
 /*-----------------------------------------------------------*/
 
-static void Traffic_Light_State_Task( void *pvParameters )
+static void Red_LED_Controller_Task( void *pvParameters )
 {
-
-	//Cycle through light states based on a timer.
-	// Update light state Global variable
 	uint16_t rx_data;
 	while(1)
 	{
@@ -342,7 +336,7 @@ static void Traffic_Light_State_Task( void *pvParameters )
 
 /*-----------------------------------------------------------*/
 
-static void System_Display_Task( void *pvParameters )
+static void Amber_LED_Controller_Task( void *pvParameters )
 {
 	uint16_t rx_data;
 	while(1)
@@ -428,5 +422,5 @@ static void prvSetupHardware( void )
 
 	/* TODO: Setup the clocks, etc. here, if they were not configured before
 	main() was called. */
-
 }
+
