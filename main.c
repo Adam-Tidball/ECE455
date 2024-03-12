@@ -151,12 +151,10 @@ functionality.
 /*-----------------------------------------------------------*/
 #define mainQUEUE_LENGTH 100
 
-#define amber  	0
 #define green  	1
 #define red  	2
 #define blue  	3
 
-#define amber_led	LED3
 #define green_led	LED4
 #define red_led		LED5
 #define blue_led	LED6
@@ -176,7 +174,6 @@ static void Manager_Task( void *pvParameters );
 static void Blue_LED_Controller_Task( void *pvParameters );
 static void Green_LED_Controller_Task( void *pvParameters );
 static void Red_LED_Controller_Task( void *pvParameters );
-static void Amber_LED_Controller_Task( void *pvParameters );
 
 xQueueHandle xQueue_handle = 0;
 
@@ -187,7 +184,7 @@ int main(void)
 {
 
 	/* Initialize LEDs */
-	STM_EVAL_LEDInit(amber_led);
+
 	STM_EVAL_LEDInit(green_led);
 	STM_EVAL_LEDInit(red_led);
 	STM_EVAL_LEDInit(blue_led);
@@ -209,7 +206,6 @@ int main(void)
 	xTaskCreate( Blue_LED_Controller_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( Red_LED_Controller_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( Green_LED_Controller_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Amber_LED_Controller_Task, "Amber_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -222,14 +218,12 @@ int main(void)
 
 static void Manager_Task( void *pvParameters )
 {
-	uint16_t tx_data = amber;
+	uint16_t tx_data = green;
 
 
 	while(1)
 	{
 
-		if(tx_data == amber)
-			STM_EVAL_LEDOn(amber_led);
 		if(tx_data == green)
 			STM_EVAL_LEDOn(green_led);
 		if(tx_data == red)
@@ -241,7 +235,7 @@ static void Manager_Task( void *pvParameters )
 		{
 			printf("Manager: %u ON!\n", tx_data);
 			if(++tx_data == 4)
-				tx_data = 0;
+				tx_data = 1;
 			vTaskDelay(1000);
 		}
 		else
@@ -336,34 +330,6 @@ static void Red_LED_Controller_Task( void *pvParameters )
 
 /*-----------------------------------------------------------*/
 
-static void Amber_LED_Controller_Task( void *pvParameters )
-{
-	uint16_t rx_data;
-	while(1)
-	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == amber)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(amber_led);
-				printf("Amber Off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("AmberTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
-	}
-}
-
-
-/*-----------------------------------------------------------*/
-
 void vApplicationMallocFailedHook( void )
 {
 	/* The malloc failed hook is enabled by setting
@@ -423,4 +389,3 @@ static void prvSetupHardware( void )
 	/* TODO: Setup the clocks, etc. here, if they were not configured before
 	main() was called. */
 }
-
