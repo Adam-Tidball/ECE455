@@ -171,11 +171,50 @@ static void prvSetupHardware( void );
  * this file.
  */
 static void Manager_Task( void *pvParameters );
-static void Blue_LED_Controller_Task( void *pvParameters );
-static void Green_LED_Controller_Task( void *pvParameters );
-static void Red_LED_Controller_Task( void *pvParameters );
+static void Blue_LED_User_Task( void *pvParameters );
+static void Green_LED_User_Task( void *pvParameters );
+static void Red_LED_User_Task( void *pvParameters );
+
+static void DDS_Manager_Task( void *pvParameters );
+static void Generate_DD_Task( void *pvParameters );
+static void Monitor_Task( void *pvParameters );
 
 xQueueHandle xQueue_handle = 0;
+
+/*-----------------------------------------------------------*/
+  // DD_TASK STRUCT
+enum task_type {PERIODIC, APERIODIC};
+
+//struct dd_task {
+//	TaskHandle_t t_handle;
+//	task_type type;
+//	uint32_t task_id;
+//	uint32_t release_time;
+//	uint32_t absolute_deadline;
+//	uint32_t completion_time;
+//};
+//
+//// DD_TASK LIST STRUCT
+//struct dd_task_list {
+//	dd_task task;
+//	struct dd_task_list *next_task;
+//};
+
+/*-----------------------------------------------------------*/
+  // Core Functions
+static int release_dd_task(){
+	return 0;
+}
+
+static int complete_dd_task(){
+	return 0;
+}
+
+void get_active_dd_task_list(){}
+
+void get_completed_dd_task_list(){}
+
+void get_overdue_dd_task_list(){}
 
 
 /*-----------------------------------------------------------*/
@@ -203,9 +242,13 @@ int main(void)
 	vQueueAddToRegistry( xQueue_handle, "MainQueue" );
 
 	xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-	xTaskCreate( Blue_LED_Controller_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Red_LED_Controller_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Green_LED_Controller_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+
+	xTaskCreate( DDS_Manager_Task, "DDS_Manager", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Generate_DD_Task, "Generate_DD_Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Monitor_Task, "Monitor_Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -215,7 +258,102 @@ int main(void)
 
 
 /*-----------------------------------------------------------*/
+// DDS TASK
+/*-----------------------------------------------------------*/
+static void DDS_Manager_Task( void *pvParameters )
+{
+	// IN THIS TASK WE WILL HAVE:
+	// DD task lists (Active, completed, & overdue)
+	// Timer
+	// Call DD_functions
+	// Hold the queues
 
+	uint16_t released_task_info = release_dd_task();
+
+	uint16_t completed_task_info = complete_dd_task();
+
+	get_active_dd_task_list();
+
+	get_completed_dd_task_list();
+
+	get_overdue_dd_task_list();
+
+}
+
+
+/*-----------------------------------------------------------*/
+// DD TASK GENERATOR TASK
+/*-----------------------------------------------------------*/
+void vTimerOneCallback ( TimerHandle_t xTimer )
+{
+	// Create Task 1
+	STM_EVAL_LEDOn(red_led);
+
+	// add it to the DDS manager queue (as created task message)
+
+ }
+
+static void Generate_DD_Task( void *pvParameters )
+{
+	// IN THIS TASK WE WILL HAVE:
+	// dd task struct
+
+//	uint16_t tx_data = green;
+//
+//	TimerHandle_t xTimerCreate
+//				 ( const char * const pcTimerName,
+//				   const TickType_t xTimerPeriod,
+//				   const UBaseType_t uxAutoReload,
+//				   void * const pvTimerID,
+//				   TimerCallbackFunction_t pxCallbackFunction );
+//
+//	int t1_period = 1; //set by t1 benchmark
+//
+//	TimerHandle_t task1_timer = xTimerCreate("Task 1 Timer", t1_period, pdTRUE, ( void * ) 0, vTimerOneCallback);
+//	xTimerStart(task1_timer, 0);
+//
+//
+//	//test
+//	STM_EVAL_LEDOn(blue_led);
+
+//	while(1)
+//	{
+//
+//		if(tx_data == green)
+//			STM_EVAL_LEDOn(green_led);
+//		if(tx_data == red)
+//			STM_EVAL_LEDOn(red_led);
+//		if(tx_data == blue)
+//			STM_EVAL_LEDOn(blue_led);
+//
+//		if( xQueueSend(xQueue_handle,&tx_data,1000))
+//		{
+//			printf("Manager: %u ON!\n", tx_data);
+//			if(++tx_data == 4)
+//				tx_data = 1;
+//			vTaskDelay(1000);
+//		}
+//		else
+//		{
+//			printf("Manager Failed!\n");
+//		}
+//	}
+
+}
+
+
+/*-----------------------------------------------------------*/
+// MONITOR TASK
+/*-----------------------------------------------------------*/
+static void Monitor_Task( void *pvParameters )
+{
+	// IN THIS TASK WE WILL HAVE:
+
+
+}
+
+
+/*-----------------------------------------------------------*/
 static void Manager_Task( void *pvParameters )
 {
 	uint16_t tx_data = green;
@@ -245,9 +383,11 @@ static void Manager_Task( void *pvParameters )
 	}
 }
 
-/*-----------------------------------------------------------*/
 
-static void Blue_LED_Controller_Task( void *pvParameters )
+/*-----------------------------------------------------------*/
+// USER TASKS
+/*-----------------------------------------------------------*/
+static void Blue_LED_User_Task( void *pvParameters )
 {
 	uint16_t rx_data;
 	while(1)
@@ -274,8 +414,7 @@ static void Blue_LED_Controller_Task( void *pvParameters )
 
 
 /*-----------------------------------------------------------*/
-
-static void Green_LED_Controller_Task( void *pvParameters )
+static void Green_LED_User_Task( void *pvParameters )
 {
 	uint16_t rx_data;
 	while(1)
@@ -301,8 +440,7 @@ static void Green_LED_Controller_Task( void *pvParameters )
 }
 
 /*-----------------------------------------------------------*/
-
-static void Red_LED_Controller_Task( void *pvParameters )
+static void Red_LED_User_Task( void *pvParameters )
 {
 	uint16_t rx_data;
 	while(1)
@@ -329,7 +467,8 @@ static void Red_LED_Controller_Task( void *pvParameters )
 
 
 /*-----------------------------------------------------------*/
-
+// MISCELLANEOUS TASKS
+/*-----------------------------------------------------------*/
 void vApplicationMallocFailedHook( void )
 {
 	/* The malloc failed hook is enabled by setting
@@ -342,8 +481,8 @@ void vApplicationMallocFailedHook( void )
 	configTOTAL_HEAP_SIZE configuration constant in FreeRTOSConfig.h. */
 	for( ;; );
 }
-/*-----------------------------------------------------------*/
 
+/*-----------------------------------------------------------*/
 void vApplicationStackOverflowHook( xTaskHandle pxTask, signed char *pcTaskName )
 {
 	( void ) pcTaskName;
@@ -356,8 +495,8 @@ void vApplicationStackOverflowHook( xTaskHandle pxTask, signed char *pcTaskName 
 	corrupt. */
 	for( ;; );
 }
-/*-----------------------------------------------------------*/
 
+/*-----------------------------------------------------------*/
 void vApplicationIdleHook( void )
 {
 volatile size_t xFreeStackSpace;
@@ -378,8 +517,8 @@ volatile size_t xFreeStackSpace;
 		reduced accordingly. */
 	}
 }
-/*-----------------------------------------------------------*/
 
+/*-----------------------------------------------------------*/
 static void prvSetupHardware( void )
 {
 	/* Ensure all priority bits are assigned as preemption priority bits.
