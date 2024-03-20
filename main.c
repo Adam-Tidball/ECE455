@@ -176,29 +176,41 @@ static void Green_LED_User_Task( void *pvParameters );
 static void Red_LED_User_Task( void *pvParameters );
 
 static void DDS_Manager_Task( void *pvParameters );
-static void Generate_DD_Task( void *pvParameters );
+static void Generate_DD_Task1( void *pvParameters );
+static void Generate_DD_Task2( void *pvParameters );
+static void Generate_DD_Task3( void *pvParameters );
 static void Monitor_Task( void *pvParameters );
 
 xQueueHandle xQueue_handle = 0;
 
 /*-----------------------------------------------------------*/
   // DD_TASK STRUCT
+typedef enum task_type task_type;
 enum task_type {PERIODIC, APERIODIC};
 
-//struct dd_task {
-//	TaskHandle_t t_handle;
-//	task_type type;
-//	uint32_t task_id;
-//	uint32_t release_time;
-//	uint32_t absolute_deadline;
-//	uint32_t completion_time;
-//};
-//
-//// DD_TASK LIST STRUCT
-//struct dd_task_list {
-//	dd_task task;
-//	struct dd_task_list *next_task;
-//};
+typedef struct dd_task {
+	TaskHandle_t t_handle;
+	task_type type;
+	uint32_t task_id;
+	uint32_t release_time;
+	uint32_t absolute_deadline;
+	uint32_t completion_time;
+} dd_task;
+
+// DD_TASK LIST STRUCT
+typedef struct dd_task_list {
+	dd_task task;
+	struct dd_task_list *next_task;
+} dd_task_list;
+
+// THIS IS WHERE YOU SET THE BENCHMARK VALUES
+int t1_ET = 95;
+int t1_P = 500;
+int t2_ET = 150;
+int t2_P = 500;
+int t3_ET = 250;
+int t3_P = 750;
+
 
 /*-----------------------------------------------------------*/
   // Core Functions
@@ -219,6 +231,9 @@ void get_overdue_dd_task_list(){}
 
 /*-----------------------------------------------------------*/
 
+
+TaskHandle_t t1_handle;
+
 int main(void)
 {
 
@@ -236,19 +251,23 @@ int main(void)
 	/* Create the queue used by the queue send and queue receive tasks.
 	http://www.freertos.org/a00116.html */
 	xQueue_handle = xQueueCreate( 	mainQUEUE_LENGTH,		/* The number of items the queue can hold. */
-							sizeof( uint16_t ) );	/* The size of each item the queue holds. */
+							sizeof( uint16_t ));	/* The size of each item the queue holds. */
 
 	/* Add to the registry, for the benefit of kernel aware debugging. */
 	vQueueAddToRegistry( xQueue_handle, "MainQueue" );
 
-	xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	//xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, &t1_handle);
+	//xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	//xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 	xTaskCreate( DDS_Manager_Task, "DDS_Manager", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Generate_DD_Task, "Generate_DD_Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( Monitor_Task, "Monitor_Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+
+	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 3, NULL);
+//	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+//	xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -278,44 +297,93 @@ static void DDS_Manager_Task( void *pvParameters )
 
 	get_overdue_dd_task_list();
 
+	while(1){
+
+	}
+
 }
 
 
 /*-----------------------------------------------------------*/
 // DD TASK GENERATOR TASK
 /*-----------------------------------------------------------*/
-void vTimerOneCallback ( TimerHandle_t xTimer )
+//void vTimerOneCallback ( TimerHandle_t xTimer )
+//{
+//	// Create Task 1
+//	STM_EVAL_LEDOn(red_led);
+//
+//	// add it to the DDS manager queue (as created task message)
+//
+// }
+
+static void Generate_DD_Task1( void *pvParameters)
 {
-	// Create Task 1
-	STM_EVAL_LEDOn(red_led);
+	while(1){
 
-	// add it to the DDS manager queue (as created task message)
+		struct dd_task dd_task_instance;
+		dd_task_instance.type = PERIODIC;
+		dd_task_instance.t_handle = t1_handle;
+		dd_task_instance.task_id = 1;
 
- }
 
-static void Generate_DD_Task( void *pvParameters )
+		if( xQueueSend(xQueue_handle,&dd_task_instance,1000)) {
+			vTaskDelay(t1_P);
+		}
+	}
+
+}
+
+//static void Generate_DD_Task2( void *pvParameters)
+//{
+//	while(1){
+//
+//		struct dd_task dd_task_instance;
+//		dd_task_instance.type = PERIODIC;
+//
+//
+//		if( xQueueSend(xQueue_handle,&dd_task_instance,1000)) {
+//			vTaskDelay(P);
+//		}
+//	}
+//
+//}
+//
+//static void Generate_DD_Task3( void *pvParameters)
+//{
+//	while(1){
+//
+//		struct dd_task dd_task_instance;
+//		dd_task_instance.type = PERIODIC;
+//
+//
+//		if( xQueueSend(xQueue_handle,&dd_task_instance,1000)) {
+//			vTaskDelay(P);
+//		}
+//	}
+//
+//}
+
+
+/*-----------------------------------------------------------*/
+// MONITOR TASK
+/*-----------------------------------------------------------*/
+static void Monitor_Task( void *pvParameters )
 {
 	// IN THIS TASK WE WILL HAVE:
-	// dd task struct
 
+	while(1){
+
+	}
+
+}
+
+
+/*-----------------------------------------------------------*/
+//static void Manager_Task( void *pvParameters )
+//{
 //	uint16_t tx_data = green;
 //
-//	TimerHandle_t xTimerCreate
-//				 ( const char * const pcTimerName,
-//				   const TickType_t xTimerPeriod,
-//				   const UBaseType_t uxAutoReload,
-//				   void * const pvTimerID,
-//				   TimerCallbackFunction_t pxCallbackFunction );
 //
-//	int t1_period = 1; //set by t1 benchmark
-//
-//	TimerHandle_t task1_timer = xTimerCreate("Task 1 Timer", t1_period, pdTRUE, ( void * ) 0, vTimerOneCallback);
-//	xTimerStart(task1_timer, 0);
-//
-//
-//	//test
-//	STM_EVAL_LEDOn(blue_led);
-
 //	while(1)
 //	{
 //
@@ -338,50 +406,7 @@ static void Generate_DD_Task( void *pvParameters )
 //			printf("Manager Failed!\n");
 //		}
 //	}
-
-}
-
-
-/*-----------------------------------------------------------*/
-// MONITOR TASK
-/*-----------------------------------------------------------*/
-static void Monitor_Task( void *pvParameters )
-{
-	// IN THIS TASK WE WILL HAVE:
-
-
-}
-
-
-/*-----------------------------------------------------------*/
-static void Manager_Task( void *pvParameters )
-{
-	uint16_t tx_data = green;
-
-
-	while(1)
-	{
-
-		if(tx_data == green)
-			STM_EVAL_LEDOn(green_led);
-		if(tx_data == red)
-			STM_EVAL_LEDOn(red_led);
-		if(tx_data == blue)
-			STM_EVAL_LEDOn(blue_led);
-
-		if( xQueueSend(xQueue_handle,&tx_data,1000))
-		{
-			printf("Manager: %u ON!\n", tx_data);
-			if(++tx_data == 4)
-				tx_data = 1;
-			vTaskDelay(1000);
-		}
-		else
-		{
-			printf("Manager Failed!\n");
-		}
-	}
-}
+//}
 
 
 /*-----------------------------------------------------------*/
@@ -389,81 +414,67 @@ static void Manager_Task( void *pvParameters )
 /*-----------------------------------------------------------*/
 static void Blue_LED_User_Task( void *pvParameters )
 {
-	uint16_t rx_data;
 	while(1)
 	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == blue)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(blue_led);
-				printf("Blue Off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("BlueTask GRP (%u).\n", rx_data); // Got wwrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
+		STM_EVAL_LEDOn(blue_led);
+		vTaskDelay(100);
+		STM_EVAL_LEDOff(blue_led);
+		vTaskDelay(600);
 	}
 }
 
 
 /*-----------------------------------------------------------*/
-static void Green_LED_User_Task( void *pvParameters )
-{
-	uint16_t rx_data;
-	while(1)
-	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == green)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(green_led);
-				printf("Green Off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("GreenTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
-	}
-}
-
-/*-----------------------------------------------------------*/
-static void Red_LED_User_Task( void *pvParameters )
-{
-	uint16_t rx_data;
-	while(1)
-	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == red)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(red_led);
-				printf("Red off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("RedTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
-	}
-}
+//static void Green_LED_User_Task( void *pvParameters )
+//{
+//	uint16_t rx_data;
+//	while(1)
+//	{
+//		if(xQueueReceive(xQueue_handle, &rx_data, 500))
+//		{
+//			if(rx_data == green)
+//			{
+//				vTaskDelay(250);
+//				STM_EVAL_LEDOff(green_led);
+//				printf("Green Off.\n");
+//			}
+//			else
+//			{
+//				if( xQueueSend(xQueue_handle,&rx_data,1000))
+//					{
+//						printf("GreenTask GRP (%u).\n", rx_data); // Got wrong Package
+//						vTaskDelay(500);
+//					}
+//			}
+//		}
+//	}
+//}
+//
+///*-----------------------------------------------------------*/
+//static void Red_LED_User_Task( void *pvParameters )
+//{
+//	uint16_t rx_data;
+//	while(1)
+//	{
+//		if(xQueueReceive(xQueue_handle, &rx_data, 500))
+//		{
+//			if(rx_data == red)
+//			{
+//				vTaskDelay(250);
+//				STM_EVAL_LEDOff(red_led);
+//				printf("Red off.\n");
+//			}
+//			else
+//			{
+//				if( xQueueSend(xQueue_handle,&rx_data,1000))
+//					{
+//						printf("RedTask GRP (%u).\n", rx_data); // Got wrong Package
+//						vTaskDelay(500);
+//					}
+//			}
+//		}
+//	}
+//}
 
 
 /*-----------------------------------------------------------*/
