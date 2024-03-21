@@ -286,11 +286,11 @@ static void create_and_add_to_list(int task_num) {
 				new_dd_task_list.prev_task = current_task_list.prev_task;
 
 
-				current_task_list.prev_task = new_dd_task_list;
-				new_dd_task_list.prev_task->next_task = new_dd_task_list;
+				current_task_list.prev_task = &new_dd_task_list;
+				new_dd_task_list.prev_task->next_task = &new_dd_task_list;
 
 			} else {
-				current_task_list = current_task_list.next_task;
+				current_task_list = current_task_list->next_task;
 			}
 
 		}
