@@ -271,23 +271,23 @@ static void create_and_add_to_list(int task_num) {
 
 	if(&active_task_list.task != NULL){ //if empty list
 
-		active_task_list.next_task = **active_task_list;
+		active_task_list.next_task = &active_task_list;
 		active_task_list.prev_task = NULL;
 		active_task_list.task = *new_dd_task;
 	}
 	else { //if none empty list
 
-		current_task_list = active_task_list;
-		while(active_task_list.task != NULL){
-			if (new_dd_task_list.task->absolute_deadline < current_task_list.task.absolute_deadline) {
+		struct dd_task_list current_task_list = active_task_list;
+		while(&active_task_list.task != NULL){
+			if (new_dd_task_list.task.absolute_deadline < current_task_list.task.absolute_deadline) {
 				//insert task into task list
 
-				new_dd_task_list->next_task = current_task_list;
-				new_dd_task_list->prev_task = current_task_list.prev_task;
+				new_dd_task_list.next_task = &current_task_list;
+				new_dd_task_list.prev_task = current_task_list.prev_task;
 
 
-				current_task_list->prev_task = new_dd_task_list;
-				new_dd_task_list->prev_task->next_task = new_dd_task_list;
+				current_task_list.prev_task = new_dd_task_list;
+				new_dd_task_list.prev_task->next_task = new_dd_task_list;
 
 			} else {
 				current_task_list = current_task_list.next_task;
