@@ -181,7 +181,8 @@ static void Generate_DD_Task2( void *pvParameters );
 static void Generate_DD_Task3( void *pvParameters );
 static void Monitor_Task( void *pvParameters );
 
-xQueueHandle xQueue_handle = 0;
+xQueueHandle xQueue_GeneratedTasks_handle = 0;
+
 
 /*-----------------------------------------------------------*/
   // DD_TASK STRUCT
@@ -189,7 +190,7 @@ typedef enum task_type task_type;
 enum task_type {PERIODIC, APERIODIC};
 
 typedef struct dd_task {
-	TaskHandle_t t_handle;
+//	TaskHandle_t t_handle;
 	task_type type;
 	uint32_t task_id;
 	uint32_t release_time;
@@ -199,10 +200,17 @@ typedef struct dd_task {
 
 // DD_TASK LIST STRUCT
 typedef struct dd_task_list {
-	dd_task task;
+	struct dd_task task;
 	struct dd_task_list *next_task;
+	struct dd_task_list *prev_task;
 } dd_task_list;
 
+//Task lists
+struct dd_task_list active_task_list;
+struct dd_task_list comp_task_list;
+struct dd_task_list overdue_task_list;
+
+/*-----------------------------------------------------------*/
 // THIS IS WHERE YOU SET THE BENCHMARK VALUES
 int t1_ET = 95;
 int t1_P = 500;
@@ -211,9 +219,89 @@ int t2_P = 500;
 int t3_ET = 250;
 int t3_P = 750;
 
+int T1 = 1;
+int T2 = 2;
+int T3 = 3;
+
+TaskHandle_t t1_handle;
+
 
 /*-----------------------------------------------------------*/
   // Core Functions
+static void create_and_add_to_list(int task_num) {
+
+	int cur_time = xTaskGetTickCount() * (1/configTICK_RATE_HZ) * 1000;
+
+
+
+	struct dd_task* new_dd_task = (struct dd_task*)malloc(sizeof(struct dd_task));
+
+	if(task_num == 1){
+		new_dd_task->absolute_deadline = cur_time + t1_P;
+		//new_dd_task->completion_time = 0;
+		new_dd_task->release_time = cur_time;
+		//new_dd_task->t_handle =;
+		new_dd_task->task_id = 1;
+		new_dd_task->type = PERIODIC;
+	}
+	else if(task_num == 2){
+		new_dd_task->absolute_deadline = cur_time + t2_P;
+		//new_dd_task->completion_time = 0;
+		new_dd_task->release_time = cur_time;
+		//new_dd_task->t_handle =;
+		new_dd_task->task_id = 2;
+		new_dd_task->type = PERIODIC;
+	}
+	else if(task_num == 3){
+		new_dd_task->absolute_deadline = cur_time + t3_P;
+		//new_dd_task->completion_time = 0;
+		new_dd_task->release_time = cur_time;
+		//new_dd_task->t_handle =;
+		new_dd_task->task_id = 3;
+		new_dd_task->type = PERIODIC;
+	}
+
+
+	dd_task_list new_dd_task_list;
+	new_dd_task_list.next_task = NULL;
+	new_dd_task_list.prev_task = NULL;
+	new_dd_task_list.task = *new_dd_task;
+
+
+
+	if(&active_task_list.task != NULL){ //if empty list
+
+		active_task_list.next_task = **active_task_list;
+		active_task_list.prev_task = NULL;
+		active_task_list.task = *new_dd_task;
+	}
+	else { //if none empty list
+
+		current_task_list = active_task_list;
+		while(active_task_list.task != NULL){
+			if (new_dd_task_list.task->absolute_deadline < current_task_list.task.absolute_deadline) {
+				//insert task into task list
+
+				new_dd_task_list->next_task = current_task_list;
+				new_dd_task_list->prev_task = current_task_list.prev_task;
+
+
+				current_task_list->prev_task = new_dd_task_list;
+				new_dd_task_list->prev_task->next_task = new_dd_task_list;
+
+			} else {
+				current_task_list = current_task_list.next_task;
+			}
+
+		}
+	}
+
+
+
+
+}
+
+
 static int release_dd_task(){
 	return 0;
 }
@@ -232,7 +320,7 @@ void get_overdue_dd_task_list(){}
 /*-----------------------------------------------------------*/
 
 
-TaskHandle_t t1_handle;
+
 
 int main(void)
 {
@@ -248,13 +336,15 @@ int main(void)
 	prvSetupHardware();
 
 
-	/* Create the queue used by the queue send and queue receive tasks.
+	/* Create the queues.
 	http://www.freertos.org/a00116.html */
-	xQueue_handle = xQueueCreate( 	mainQUEUE_LENGTH,		/* The number of items the queue can hold. */
+	xQueue_GeneratedTasks_handle = xQueueCreate( 	mainQUEUE_LENGTH,		/* The number of items the queue can hold. */
 							sizeof( uint16_t ));	/* The size of each item the queue holds. */
 
+
 	/* Add to the registry, for the benefit of kernel aware debugging. */
-	vQueueAddToRegistry( xQueue_handle, "MainQueue" );
+	vQueueAddToRegistry( xQueue_GeneratedTasks_handle, "Active_Task_Queue" );
+
 
 	//xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, &t1_handle);
@@ -267,7 +357,6 @@ int main(void)
 	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 3, NULL);
 //	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 //	xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -286,6 +375,17 @@ static void DDS_Manager_Task( void *pvParameters )
 	// Timer
 	// Call DD_functions
 	// Hold the queues
+
+	int num;
+
+
+	if(xQueueReceive(xQueue_GeneratedTasks_handle, &num, 500)){
+		//create t1 struct, add to active list
+		create_and_add_to_list(num);
+
+	}
+
+
 
 	uint16_t released_task_info = release_dd_task();
 
@@ -320,13 +420,14 @@ static void Generate_DD_Task1( void *pvParameters)
 {
 	while(1){
 
-		struct dd_task dd_task_instance;
-		dd_task_instance.type = PERIODIC;
-		dd_task_instance.t_handle = t1_handle;
-		dd_task_instance.task_id = 1;
+//		struct dd_task dd_task_instance;
+//		dd_task_instance.type = PERIODIC;
+//		dd_task_instance.t_handle = t1_handle;
+//		dd_task_instance.task_id = 1;
 
 
-		if( xQueueSend(xQueue_handle,&dd_task_instance,1000)) {
+
+		if( xQueueSend(xQueue_Active_handle,&T1,1000)) {
 			vTaskDelay(t1_P);
 		}
 	}
