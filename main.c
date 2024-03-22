@@ -182,6 +182,8 @@ static void Generate_DD_Task3( void *pvParameters );
 static void Monitor_Task( void *pvParameters );
 
 xQueueHandle xQueue_GeneratedTasks_handle = 0;
+xQueueHandle xQueue_DisplayTask_handle = 0;
+xQueueHandle xQueue_CompTimeTask_handle = 0;
 
 
 /*-----------------------------------------------------------*/
@@ -223,15 +225,25 @@ int T1 = 1;
 int T2 = 2;
 int T3 = 3;
 
+int dd_task_count = 0;
+int dd_task_comp_count = 0;
+int dd_task_overdue_count = 0;
+
+int time_tester = 0;
+
+
 TaskHandle_t t1_handle;
 
 
 /*-----------------------------------------------------------*/
   // Core Functions
+
+
 static void create_and_add_to_list(int task_num) {
 
-	int cur_time = xTaskGetTickCount() * (1/configTICK_RATE_HZ) * 1000;
 
+
+	int cur_time = xTaskGetTickCount();// * (1/configTICK_RATE_HZ) * 1000;
 
 
 	struct dd_task* new_dd_task = (struct dd_task*)malloc(sizeof(struct dd_task));
@@ -271,9 +283,10 @@ static void create_and_add_to_list(int task_num) {
 
 	if(&active_task_list.task != NULL){ //if empty list
 
-		active_task_list.next_task = &active_task_list;
+		active_task_list.next_task = NULL;
 		active_task_list.prev_task = NULL;
 		active_task_list.task = *new_dd_task;
+		dd_task_count++;
 	}
 	else { //if none empty list
 
@@ -289,18 +302,62 @@ static void create_and_add_to_list(int task_num) {
 				current_task_list.prev_task = &new_dd_task_list;
 				new_dd_task_list.prev_task->next_task = &new_dd_task_list;
 
-			} else {
-				current_task_list = current_task_list->next_task;
-			}
+				dd_task_count++;
 
+			} else {
+				current_task_list = *current_task_list.next_task;
+			}
 		}
 	}
+}
 
 
+static void compeleted_task_list_update(){
 
+	dd_task_list new_active_task_list = *active_task_list.next_task;
+	new_active_task_list.prev_task = NULL;
+
+	active_task_list.next_task = &comp_task_list;
+	comp_task_list.prev_task = &active_task_list;
+
+	comp_task_list = active_task_list;
+
+	active_task_list = new_active_task_list;
+
+	dd_task_comp_count++;
+
+	comp_time_queue_update();
 
 }
 
+
+static void overdue_task_list_update(){
+
+	dd_task_list new_active_task_list = *active_task_list.next_task;
+	new_active_task_list.prev_task = NULL;
+
+	active_task_list.next_task = &overdue_task_list;
+	overdue_task_list.prev_task = &active_task_list;
+
+	overdue_task_list = active_task_list;
+
+	active_task_list = new_active_task_list;
+
+	dd_task_overdue_count++;
+
+	comp_time_queue_update();
+
+}
+
+
+void comp_time_queue_update(){
+
+	int cur_time = xTaskGetTickCount();
+
+	xQueueSend(xQueue_CompTimeTask_handle,&cur_time,1000);
+
+
+}
 
 static int release_dd_task(){
 	return 0;
@@ -341,9 +398,14 @@ int main(void)
 	xQueue_GeneratedTasks_handle = xQueueCreate( 	mainQUEUE_LENGTH,		/* The number of items the queue can hold. */
 							sizeof( uint16_t ));	/* The size of each item the queue holds. */
 
+	xQueue_DisplayTask_handle = xQueueCreate( 	mainQUEUE_LENGTH, sizeof( uint16_t ));
+	xQueue_CompTimeTask_handle = xQueueCreate( 	mainQUEUE_LENGTH, sizeof( uint16_t ));
+
 
 	/* Add to the registry, for the benefit of kernel aware debugging. */
-	vQueueAddToRegistry( xQueue_GeneratedTasks_handle, "Active_Task_Queue" );
+	vQueueAddToRegistry( xQueue_GeneratedTasks_handle, "Generated_Tasks_Queue" );
+	vQueueAddToRegistry( xQueue_DisplayTask_handle, "Display_Tasks_Queue" );
+	vQueueAddToRegistry( xQueue_CompTimeTask_handle, "Completion_Time_Tasks_Queue" );
 
 
 	//xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
@@ -379,25 +441,28 @@ static void DDS_Manager_Task( void *pvParameters )
 	int num;
 
 
-	if(xQueueReceive(xQueue_GeneratedTasks_handle, &num, 500)){
-		//create t1 struct, add to active list
-		create_and_add_to_list(num);
-
-	}
-
-
-
-	uint16_t released_task_info = release_dd_task();
-
-	uint16_t completed_task_info = complete_dd_task();
-
-	get_active_dd_task_list();
-
-	get_completed_dd_task_list();
-
-	get_overdue_dd_task_list();
-
 	while(1){
+
+		if(xQueueReceive(xQueue_GeneratedTasks_handle, &num, 500)){
+			//creates a dd_task struct, add adds it to the active list
+			create_and_add_to_list(num);
+
+
+		}
+
+
+
+		uint16_t released_task_info = release_dd_task();
+
+		uint16_t completed_task_info = complete_dd_task();
+
+		get_active_dd_task_list();
+
+		get_completed_dd_task_list();
+
+		get_overdue_dd_task_list();
+
+
 
 	}
 
@@ -427,8 +492,9 @@ static void Generate_DD_Task1( void *pvParameters)
 
 
 
-		if( xQueueSend(xQueue_Active_handle,&T1,1000)) {
+		if( xQueueSend(xQueue_GeneratedTasks_handle,&T1,1000)) {
 			vTaskDelay(t1_P);
+			//vTaskDelay(3000); //test
 		}
 	}
 
@@ -470,9 +536,36 @@ static void Generate_DD_Task1( void *pvParameters)
 /*-----------------------------------------------------------*/
 static void Monitor_Task( void *pvParameters )
 {
-	// IN THIS TASK WE WILL HAVE:
+
 
 	while(1){
+
+
+
+		//get id of the first task in the active list
+		uint16_t task_num = active_task_list.task.task_id;
+		uint16_t comp_time;
+
+		//send the first task to the task display queue
+		xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
+
+
+		//wait for the response from the task finished queue
+		xQueueReceive(xQueue_CompTimeTask_handle, &comp_time, 1000);
+
+
+		//update the lists and add the task execution time to the finished task
+		active_task_list.task.completion_time = comp_time;
+
+		if(comp_time <= active_task_list.task.absolute_deadline){
+			// remove from active and add to comp
+			compeleted_task_list_update();
+		} else {
+			// remove from active and add to overdue
+			overdue_task_list_update();
+
+		}
+
 
 	}
 
@@ -515,12 +608,31 @@ static void Monitor_Task( void *pvParameters )
 /*-----------------------------------------------------------*/
 static void Blue_LED_User_Task( void *pvParameters )
 {
+	int task_num = 0;
+	int comp_time = 0;
+
 	while(1)
 	{
-		STM_EVAL_LEDOn(blue_led);
-		vTaskDelay(100);
-		STM_EVAL_LEDOff(blue_led);
-		vTaskDelay(600);
+
+		//wait for new task in the display queue
+		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
+
+			if(task_num == 1){
+				STM_EVAL_LEDOn(blue_led);
+				vTaskDelay(t1_ET);
+				STM_EVAL_LEDOff(blue_led);
+
+				//once the task is finished, sent the comp time to comp queue
+				comp_time = xTaskGetTickCount();
+
+				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
+			}
+
+		}
+
+
+
+
 	}
 }
 
