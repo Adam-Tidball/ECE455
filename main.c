@@ -134,9 +134,6 @@ These two hook functions are provided as examples, but do not contain any
 functionality.
 */
 
-// PROJECT TRAFFIC LIGHT
-
-
 /* Standard includes. */
 #include <stdint.h>
 #include <stdio.h>
@@ -154,12 +151,10 @@ functionality.
 /*-----------------------------------------------------------*/
 #define mainQUEUE_LENGTH 100
 
-#define amber  	0
 #define green  	1
 #define red  	2
 #define blue  	3
 
-#define amber_led	LED3
 #define green_led	LED4
 #define red_led		LED5
 #define blue_led	LED6
@@ -176,50 +171,116 @@ static void prvSetupHardware( void );
  * this file.
  */
 static void Manager_Task( void *pvParameters );
-static void Traffic_Flow_Adjustment_Task( void *pvParameters );
-static void Traffic_Generator_Task( void *pvParameters );
-static void Traffic_Light_State_Task( void *pvParameters );
-static void System_Display_Task( void *pvParameters );
+static void Blue_LED_User_Task( void *pvParameters );
+static void Green_LED_User_Task( void *pvParameters );
+static void Red_LED_User_Task( void *pvParameters );
+
+static void DDS_Manager_Task( void *pvParameters );
+static void Generate_DD_Task1( void *pvParameters );
+static void Generate_DD_Task2( void *pvParameters );
+static void Generate_DD_Task3( void *pvParameters );
+static void Monitor_Task( void *pvParameters );
 
 xQueueHandle xQueue_handle = 0;
+xQueueHandle xQueue_handle2 = 0;
+xQueueHandle xQueue_handle3 = 0;
+xQueueHandle xQueue_handle4 = 0;
+xQueueHandle xQueue_handle5 = 0;
 
+/*-----------------------------------------------------------*/
+  // DD_TASK STRUCT
+typedef enum task_type task_type;
+enum task_type {PERIODIC, APERIODIC};
+
+typedef struct dd_task {
+	TaskHandle_t t_handle;
+	task_type type;
+	uint32_t task_id;
+	uint32_t release_time;
+	uint32_t absolute_deadline;
+	uint32_t completion_time;
+} dd_task;
+
+// DD_TASK LIST STRUCT
+typedef struct dd_task_list {
+	dd_task task;
+	struct dd_task_list *next_task;
+} dd_task_list;
+
+// THIS IS WHERE YOU SET THE BENCHMARK VALUES
+int t1_ET = 95;
+int t1_P = 500;
+int t2_ET = 150;
+int t2_P = 500;
+int t3_ET = 250;
+int t3_P = 750;
+
+
+/*-----------------------------------------------------------*/
+  // Core Functions
+static int release_dd_task(){
+	return 0;
+}
+
+static int complete_dd_task(){
+	return 0;
+}
+
+void get_active_dd_task_list(){}
+
+void get_completed_dd_task_list(){}
+
+void get_overdue_dd_task_list(){}
 
 
 /*-----------------------------------------------------------*/
 
+
+
+TaskHandle_t t1_handle;
+
 int main(void)
 {
+
+	/* Initialize LEDs */
+
+	STM_EVAL_LEDInit(green_led);
+	STM_EVAL_LEDInit(red_led);
+	STM_EVAL_LEDInit(blue_led);
 
 	/* Configure the system ready to run the demo.  The clock configuration
 	can be done here if it was not done before main() was called. */
 	prvSetupHardware();
 
-	// Test
-	GPIO_SetBits(GPIOB,GPIO_Pin_3);
-	GPIO_SetBits(GPIOB,GPIO_Pin_4);
-	GPIO_SetBits(GPIOB,GPIO_Pin_5);
-
-		//ADC test
-	unint16_t = pot_val; 
-	ADC_SoftwareStartConv(ADC1);​
-	ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC);
-	ADC val = ADC_GetConversionValue(ADC1);
-	printf("Pot: %d\n", adc_value);
-	vTaskDelay(250);
 
 	/* Create the queue used by the queue send and queue receive tasks.
 	http://www.freertos.org/a00116.html */
 	xQueue_handle = xQueueCreate( 	mainQUEUE_LENGTH,		/* The number of items the queue can hold. */
-							sizeof( uint16_t ) );	/* The size of each item the queue holds. */
+							sizeof( uint16_t ));	/* The size of each item the queue holds. */
+	xQueue_handle2 = xQueueCreate( 	mainQUEUE_LENGTH, sizeof( uint16_t ));
+	xQueue_handle3 = xQueueCreate( 	mainQUEUE_LENGTH, sizeof( uint16_t ));
+	xQueue_handle4 = xQueueCreate( 	mainQUEUE_LENGTH, sizeof( uint16_t ));
+	xQueue_handle5 = xQueueCreate( 	mainQUEUE_LENGTH, sizeof( uint16_t ));
 
 	/* Add to the registry, for the benefit of kernel aware debugging. */
 	vQueueAddToRegistry( xQueue_handle, "MainQueue" );
+	vQueueAddToRegistry( xQueue_handle2, "MainQueue2" );
+	vQueueAddToRegistry( xQueue_handle3, "MainQueue3" );
+	vQueueAddToRegistry( xQueue_handle4, "MainQueue4" );
+	vQueueAddToRegistry( xQueue_handle5, "MainQueue5" );
 
-	xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-	xTaskCreate( Traffic_Flow_Adjustment_Task, "TFA", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Traffic_Generator_Task, "TFG", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Traffic_Light_State_Task, "TLS", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( System_Display_Task, "SD", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	//xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, &t1_handle);
+	//xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	//xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+
+	xTaskCreate( DDS_Manager_Task, "DDS_Manager", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Monitor_Task, "Monitor_Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+
+	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 3, NULL);
+//	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+//	xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -229,45 +290,27 @@ int main(void)
 
 
 /*-----------------------------------------------------------*/
-
-static void Manager_Task( void *pvParameters )
-{
-	uint16_t tx_data = amber;
-
-
-	while(1)
-	{
-
-		if(tx_data == amber)
-			STM_EVAL_LEDOn(amber_led);
-		if(tx_data == green)
-			STM_EVAL_LEDOn(green_led);
-		if(tx_data == red)
-			STM_EVAL_LEDOn(red_led);
-		if(tx_data == blue)
-			STM_EVAL_LEDOn(blue_led);
-
-		if( xQueueSend(xQueue_handle,&tx_data,1000))
-		{
-			printf("Manager: %u ON!\n", tx_data);
-			if(++tx_data == 4)
-				tx_data = 0;
-			vTaskDelay(1000);
-		}
-		else
-		{
-			printf("Manager Failed!\n");
-		}
-	}
-}
-
+// DDS TASK
 /*-----------------------------------------------------------*/
-
-static void Traffic_Flow_Adjustment_Task( void *pvParameters )
+static void DDS_Manager_Task( void *pvParameters )
 {
-	//Read value from Pot and update the global variable for traffic flow rate
-	while(1)
-	{
+	// IN THIS TASK WE WILL HAVE:
+	// DD task lists (Active, completed, & overdue)
+	// Timer
+	// Call DD_functions
+	// Hold the queues
+
+	uint16_t released_task_info = release_dd_task();
+
+	uint16_t completed_task_info = complete_dd_task();
+
+	get_active_dd_task_list();
+
+	get_completed_dd_task_list();
+
+	get_overdue_dd_task_list();
+
+	while(1){
 
 	}
 
@@ -275,96 +318,184 @@ static void Traffic_Flow_Adjustment_Task( void *pvParameters )
 
 
 /*-----------------------------------------------------------*/
+// DD TASK GENERATOR TASK
+/*-----------------------------------------------------------*/
+//void vTimerOneCallback ( TimerHandle_t xTimer )
+//{
+//	// Create Task 1
+//	STM_EVAL_LEDOn(red_led);
+//
+//	// add it to the DDS manager queue (as created task message)
+//
+// }
 
-static void Traffic_Generator_Task( void *pvParameters )
+static void Generate_DD_Task1( void *pvParameters)
 {
-	// Based on the value changed by the Traffic Flow Adjustment Task 
-	// create a chance of generating a car
+	while(1){
 
-	uint16_t rx_data;
-	while(1)
-	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == green)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(green_led);
-				printf("Green Off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("GreenTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
+		struct dd_task dd_task_instance;
+		dd_task_instance.type = PERIODIC;
+		dd_task_instance.t_handle = t1_handle;
+		dd_task_instance.task_id = 1;
+
+
+		if( xQueueSend(xQueue_handle,&dd_task_instance,1000)) {
+			vTaskDelay(t1_P);
 		}
 	}
+
 }
 
+//static void Generate_DD_Task2( void *pvParameters)
+//{
+//	while(1){
+//
+//		struct dd_task dd_task_instance;
+//		dd_task_instance.type = PERIODIC;
+//
+//
+//		if( xQueueSend(xQueue_handle,&dd_task_instance,1000)) {
+//			vTaskDelay(P);
+//		}
+//	}
+//
+//}
+//
+//static void Generate_DD_Task3( void *pvParameters)
+//{
+//	while(1){
+//
+//		struct dd_task dd_task_instance;
+//		dd_task_instance.type = PERIODIC;
+//
+//
+//		if( xQueueSend(xQueue_handle,&dd_task_instance,1000)) {
+//			vTaskDelay(P);
+//		}
+//	}
+//
+//}
+
+
 /*-----------------------------------------------------------*/
-
-static void Traffic_Light_State_Task( void *pvParameters )
-{
-
-	//Cycle through light states based on a timer.
-	// Update light state Global variable 
-	uint16_t rx_data;
-	while(1)
-	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == red)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(red_led);
-				printf("Red off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("RedTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
-	}
-}
-
-
+// MONITOR TASK
 /*-----------------------------------------------------------*/
-
-static void System_Display_Task( void *pvParameters )
+static void Monitor_Task( void *pvParameters )
 {
-	uint16_t rx_data;
-	while(1)
-	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == amber)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(amber_led);
-				printf("Amber Off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("AmberTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
+	// IN THIS TASK WE WILL HAVE:
+
+	while(1){
+
+		//CAUSES THE ERROR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		struct dd_task* new_dd_task = (struct dd_task*)malloc(sizeof(struct dd_task));
+		vTaskDelay(10); //but not for a while when this is here
 	}
+
 }
 
 
 /*-----------------------------------------------------------*/
+//static void Manager_Task( void *pvParameters )
+//{
+//	uint16_t tx_data = green;
+//
+//
+//	while(1)
+//	{
+//
+//		if(tx_data == green)
+//			STM_EVAL_LEDOn(green_led);
+//		if(tx_data == red)
+//			STM_EVAL_LEDOn(red_led);
+//		if(tx_data == blue)
+//			STM_EVAL_LEDOn(blue_led);
+//
+//		if( xQueueSend(xQueue_handle,&tx_data,1000))
+//		{
+//			printf("Manager: %u ON!\n", tx_data);
+//			if(++tx_data == 4)
+//				tx_data = 1;
+//			vTaskDelay(1000);
+//		}
+//		else
+//		{
+//			printf("Manager Failed!\n");
+//		}
+//	}
+//}
 
+
+/*-----------------------------------------------------------*/
+// USER TASKS
+/*-----------------------------------------------------------*/
+static void Blue_LED_User_Task( void *pvParameters )
+{
+	while(1)
+	{
+		STM_EVAL_LEDOn(blue_led);
+		vTaskDelay(100);
+		STM_EVAL_LEDOff(blue_led);
+		vTaskDelay(600);
+	}
+}
+
+
+/*-----------------------------------------------------------*/
+//static void Green_LED_User_Task( void *pvParameters )
+//{
+//	uint16_t rx_data;
+//	while(1)
+//	{
+//		if(xQueueReceive(xQueue_handle, &rx_data, 500))
+//		{
+//			if(rx_data == green)
+//			{
+//				vTaskDelay(250);
+//				STM_EVAL_LEDOff(green_led);
+//				printf("Green Off.\n");
+//			}
+//			else
+//			{
+//				if( xQueueSend(xQueue_handle,&rx_data,1000))
+//					{
+//						printf("GreenTask GRP (%u).\n", rx_data); // Got wrong Package
+//						vTaskDelay(500);
+//					}
+//			}
+//		}
+//	}
+//}
+//
+///*-----------------------------------------------------------*/
+//static void Red_LED_User_Task( void *pvParameters )
+//{
+//	uint16_t rx_data;
+//	while(1)
+//	{
+//		if(xQueueReceive(xQueue_handle, &rx_data, 500))
+//		{
+//			if(rx_data == red)
+//			{
+//				vTaskDelay(250);
+//				STM_EVAL_LEDOff(red_led);
+//				printf("Red off.\n");
+//			}
+//			else
+//			{
+//				if( xQueueSend(xQueue_handle,&rx_data,1000))
+//					{
+//						printf("RedTask GRP (%u).\n", rx_data); // Got wrong Package
+//						vTaskDelay(500);
+//					}
+//			}
+//		}
+//	}
+//}
+
+
+/*-----------------------------------------------------------*/
+// MISCELLANEOUS TASKS
+/*-----------------------------------------------------------*/
 void vApplicationMallocFailedHook( void )
 {
 	/* The malloc failed hook is enabled by setting
@@ -377,8 +508,8 @@ void vApplicationMallocFailedHook( void )
 	configTOTAL_HEAP_SIZE configuration constant in FreeRTOSConfig.h. */
 	for( ;; );
 }
-/*-----------------------------------------------------------*/
 
+/*-----------------------------------------------------------*/
 void vApplicationStackOverflowHook( xTaskHandle pxTask, signed char *pcTaskName )
 {
 	( void ) pcTaskName;
@@ -391,8 +522,8 @@ void vApplicationStackOverflowHook( xTaskHandle pxTask, signed char *pcTaskName 
 	corrupt. */
 	for( ;; );
 }
-/*-----------------------------------------------------------*/
 
+/*-----------------------------------------------------------*/
 void vApplicationIdleHook( void )
 {
 volatile size_t xFreeStackSpace;
@@ -413,8 +544,8 @@ volatile size_t xFreeStackSpace;
 		reduced accordingly. */
 	}
 }
-/*-----------------------------------------------------------*/
 
+/*-----------------------------------------------------------*/
 static void prvSetupHardware( void )
 {
 	/* Ensure all priority bits are assigned as preemption priority bits.
@@ -423,61 +554,4 @@ static void prvSetupHardware( void )
 
 	/* TODO: Setup the clocks, etc. here, if they were not configured before
 	main() was called. */
-
-
-	/*
-	 *     GPIO and ADC Setup
-	 */
-
-
-	// GPIO SETUP FOR TRAFFIC LIGHTS
-		// Enable Clock
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE); // AHB High speed bus for GPIOB ports
-		// GPIO Init (configurations)
-	GPIO_InitTypeDef TrafficLight_GPIO_InitStruct;
-	TrafficLight_GPIO_InitStruct.GPIO_Pin = GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_5;  // Pins for Red, Yellow, & Green Lights
-	TrafficLight_GPIO_InitStruct.GPIO_Mode = GPIO_Mode_OUT; // Set Out bc LEDS are output
-	TrafficLight_GPIO_InitStruct.GPIO_OType = GPIO_OType_PP; // High is pushed to VCC, low is pulled to GND
-	TrafficLight_GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_NOPULL; // No switch
-	TrafficLight_GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz; // High speed for LEDs
-		// GPIO Init (call)
-	GPIO_Init(GPIOB, &TrafficLight_GPIO_InitStruct);
-
-
-	// GPIO SETUP FOR SHIFT REG
-		// Enable Clock
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
-		// GPIO Init (configurations)
-	GPIO_InitTypeDef ShiftReg_GPIO_InitStruct;
-	ShiftReg_GPIO_InitStruct.GPIO_Pin = GPIO_Pin_9;  // Data Pin
-	ShiftReg_GPIO_InitStruct.GPIO_Mode = GPIO_Mode_OUT; // Set Out bc shift registers are output
-	ShiftReg_GPIO_InitStruct.GPIO_OType = GPIO_OType_PP; // High is pushed to VCC, low is pulled to GND
-	ShiftReg_GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_NOPULL; // No switch
-	ShiftReg_GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz; // High speed for shift registers
-		// GPIO Init (call)
-	GPIO_Init(GPIOC, &ShiftReg_GPIO_InitStruct);
-
-	// ADC SETUP FOR POTENTIOMETER
-		// Enable Clocks (GPIO and ADC)
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE); // High Speed Bus for ports
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE); // Peripheral Bus for ADC
-		// GPIO Pin configuration (8.3.12)
-	GPIO_InitTypeDef ADC_Pin_GPIO_InitStruct;
-	ADC_Pin_GPIO_InitStruct.GPIO_Pin = GPIO_Pin_???; 
-	ADC_Pin_GPIO_InitStruct.GPIO_Mode = GPIO_Mode_An; // Set this pin for analog data
-		// ADC_Init (configurations)
-	ADC_InitTypeDef ADC_InitStruct;
-	ADC_InitStruct.ADC_ContinuousConvMode = ENABLE; // Conv done without extrenal triggers
-	ADC_InitStruct.ADC_DataAlign = ???; // Data align (assume right? ADC_DataAlign_Right)
-	ADC_InitStruct.ADC_Resolution = ADC_Resolution_6b; // Lower resolution = fewer clk cycles (12, 10, 8, or 6) 
-	ADC_InitStruct.ADC_ScanConvMode = DISABLE;  // Only need to scan one channel 
-	ADC_InitStruct.ADC_ExternalTrigConv = DISABLE; // Dont need bc ContinuousConvMode is on
-		// GPIO & ADC_Init (calls)
-	GPIO_Init(GPIOA, &ADC_Pin_GPIO_InitStruct);
-	ADC_Init(ADC1, &ADC_InitStruct);
-		// ADC_Cmd and Channel Config
-	ADC_Cmd(ADC1, ENABLE);
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 1, ADC_SampleTime_3Cycles​); // NOTE: can test dif sample times
-
 }
-
