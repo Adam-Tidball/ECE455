@@ -231,8 +231,12 @@ int dd_task_overdue_count = 0;
 
 int time_tester = 0;
 
+//testing
+int test_if_received = 0;
+
 
 TaskHandle_t t1_handle;
+TaskHandle_t monitor_handle;
 
 
 /*-----------------------------------------------------------*/
@@ -414,7 +418,7 @@ int main(void)
 	//xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 	xTaskCreate( DDS_Manager_Task, "DDS_Manager", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Monitor_Task, "Monitor_Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Monitor_Task, "Monitor_Task", configMINIMAL_STACK_SIZE, NULL, 1, &monitor_handle);
 
 	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 3, NULL);
 //	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
@@ -544,11 +548,13 @@ static void Monitor_Task( void *pvParameters )
 
 		//get id of the first task in the active list
 		uint16_t task_num = active_task_list.task.task_id;
+		task_num = 1;
 		uint16_t comp_time;
 
 		//send the first task to the task display queue
 		xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
 
+		vTaskSuspend(NULL);
 
 		//wait for the response from the task finished queue
 		xQueueReceive(xQueue_CompTimeTask_handle, &comp_time, 1000);
@@ -617,6 +623,8 @@ static void Blue_LED_User_Task( void *pvParameters )
 		//wait for new task in the display queue
 		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
 
+			test_if_received = 10000;
+
 			if(task_num == 1){
 				STM_EVAL_LEDOn(blue_led);
 				vTaskDelay(t1_ET);
@@ -626,7 +634,9 @@ static void Blue_LED_User_Task( void *pvParameters )
 				comp_time = xTaskGetTickCount();
 
 				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
+				vTaskResume(monitor_handle);
 			}
+			//else put it back into the queue? **********
 
 		}
 
