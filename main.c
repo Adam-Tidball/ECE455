@@ -149,7 +149,7 @@ functionality.
 
 
 /*-----------------------------------------------------------*/
-#define mainQUEUE_LENGTH 100
+#define mainQUEUE_LENGTH 1000
 
 #define green  	1
 #define red  	2
@@ -414,15 +414,15 @@ int main(void)
 
 	//xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, &t1_handle);
-	//xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	//xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 	xTaskCreate( DDS_Manager_Task, "DDS_Manager", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( Monitor_Task, "Monitor_Task", configMINIMAL_STACK_SIZE, NULL, 1, &monitor_handle);
 
-	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 3, NULL);
-//	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-//	xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+	xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -451,6 +451,7 @@ static void DDS_Manager_Task( void *pvParameters )
 			//creates a dd_task struct, add adds it to the active list
 			create_and_add_to_list(num);
 
+			vTaskResume(monitor_handle); //allow task monitor to do one update cycle
 
 		}
 
@@ -488,51 +489,38 @@ static void DDS_Manager_Task( void *pvParameters )
 static void Generate_DD_Task1( void *pvParameters)
 {
 	while(1){
-
-//		struct dd_task dd_task_instance;
-//		dd_task_instance.type = PERIODIC;
-//		dd_task_instance.t_handle = t1_handle;
-//		dd_task_instance.task_id = 1;
-
-
-
 		if( xQueueSend(xQueue_GeneratedTasks_handle,&T1,1000)) {
 			vTaskDelay(t1_P);
 			//vTaskDelay(3000); //test
+			//vTaskResume(monitor_handle); //allow task monitor to do one update cycle
 		}
 	}
 
 }
 
-//static void Generate_DD_Task2( void *pvParameters)
-//{
-//	while(1){
-//
-//		struct dd_task dd_task_instance;
-//		dd_task_instance.type = PERIODIC;
-//
-//
-//		if( xQueueSend(xQueue_handle,&dd_task_instance,1000)) {
-//			vTaskDelay(P);
-//		}
-//	}
-//
-//}
-//
-//static void Generate_DD_Task3( void *pvParameters)
-//{
-//	while(1){
-//
-//		struct dd_task dd_task_instance;
-//		dd_task_instance.type = PERIODIC;
-//
-//
-//		if( xQueueSend(xQueue_handle,&dd_task_instance,1000)) {
-//			vTaskDelay(P);
-//		}
-//	}
-//
-//}
+static void Generate_DD_Task2( void *pvParameters)
+{
+	while(1){
+		if( xQueueSend(xQueue_GeneratedTasks_handle,&T2,1000)) {
+			vTaskDelay(t2_P);
+			//vTaskDelay(3000); //test
+			//vTaskResume(monitor_handle); //allow task monitor to do one update cycle
+		}
+	}
+
+}
+
+static void Generate_DD_Task3( void *pvParameters)
+{
+	while(1){
+		if( xQueueSend(xQueue_GeneratedTasks_handle,&T3,1000)) {
+			vTaskDelay(t3_P);
+			//vTaskDelay(3000); //test
+			//vTaskResume(monitor_handle); //allow task monitor to do one update cycle
+		}
+	}
+
+}
 
 
 /*-----------------------------------------------------------*/
@@ -548,7 +536,8 @@ static void Monitor_Task( void *pvParameters )
 
 		//get id of the first task in the active list
 		uint16_t task_num = active_task_list.task.task_id;
-		task_num = 1;
+		task_num = (task_num%3) + 1;
+
 		uint16_t comp_time;
 
 		//send the first task to the task display queue
@@ -572,7 +561,7 @@ static void Monitor_Task( void *pvParameters )
 
 		}
 
-
+		vTaskSuspend(NULL);
 	}
 
 }
@@ -635,8 +624,10 @@ static void Blue_LED_User_Task( void *pvParameters )
 
 				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
 				vTaskResume(monitor_handle);
+			} else {
+				//xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
 			}
-			//else put it back into the queue? **********
+
 
 		}
 
@@ -647,57 +638,77 @@ static void Blue_LED_User_Task( void *pvParameters )
 }
 
 
-/*-----------------------------------------------------------*/
-//static void Green_LED_User_Task( void *pvParameters )
-//{
-//	uint16_t rx_data;
-//	while(1)
-//	{
-//		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-//		{
-//			if(rx_data == green)
-//			{
-//				vTaskDelay(250);
-//				STM_EVAL_LEDOff(green_led);
-//				printf("Green Off.\n");
-//			}
-//			else
-//			{
-//				if( xQueueSend(xQueue_handle,&rx_data,1000))
-//					{
-//						printf("GreenTask GRP (%u).\n", rx_data); // Got wrong Package
-//						vTaskDelay(500);
-//					}
-//			}
-//		}
-//	}
-//}
-//
-///*-----------------------------------------------------------*/
-//static void Red_LED_User_Task( void *pvParameters )
-//{
-//	uint16_t rx_data;
-//	while(1)
-//	{
-//		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-//		{
-//			if(rx_data == red)
-//			{
-//				vTaskDelay(250);
-//				STM_EVAL_LEDOff(red_led);
-//				printf("Red off.\n");
-//			}
-//			else
-//			{
-//				if( xQueueSend(xQueue_handle,&rx_data,1000))
-//					{
-//						printf("RedTask GRP (%u).\n", rx_data); // Got wrong Package
-//						vTaskDelay(500);
-//					}
-//			}
-//		}
-//	}
-//}
+static void Green_LED_User_Task( void *pvParameters )
+{
+	int task_num = 0;
+	int comp_time = 0;
+
+	while(1)
+	{
+
+		//wait for new task in the display queue
+		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
+
+			test_if_received = 10000;
+
+			if(task_num == 2){
+				STM_EVAL_LEDOn(green_led);
+				vTaskDelay(t2_ET);
+				STM_EVAL_LEDOff(green_led);
+
+				//once the task is finished, sent the comp time to comp queue
+				comp_time = xTaskGetTickCount();
+
+				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
+				vTaskResume(monitor_handle);
+			} else {
+				//xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
+			}
+
+
+
+		}
+
+
+
+
+	}
+}
+
+static void Red_LED_User_Task( void *pvParameters )
+{
+	int task_num = 0;
+	int comp_time = 0;
+
+	while(1)
+	{
+
+		//wait for new task in the display queue
+		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
+
+			test_if_received = 10000;
+
+			if(task_num == 3){
+				STM_EVAL_LEDOn(red_led);
+				vTaskDelay(t3_ET);
+				STM_EVAL_LEDOff(red_led);
+
+				//once the task is finished, sent the comp time to comp queue
+				comp_time = xTaskGetTickCount();
+
+				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
+				vTaskResume(monitor_handle);
+			} else {
+				//xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
+			}
+
+		}
+
+
+
+
+	}
+}
 
 
 /*-----------------------------------------------------------*/
