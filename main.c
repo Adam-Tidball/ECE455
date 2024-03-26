@@ -196,10 +196,6 @@ int t2_P = 500;
 int t3_ET = 250;
 int t3_P = 750;
 
-int T1 = 1;
-int T2 = 2;
-int T3 = 3;
-
 int dd_task_count = 0;
 int dd_task_comp_count = 0;
 int dd_task_overdue_count = 0;
@@ -335,7 +331,7 @@ static void create_and_add_to_list(List* active_task_list, int task_num) {
 		add_to_list(active_task_list, 1, cur_time, t1_P);
 	} else if(task_num == 2){
 		add_to_list(active_task_list, 2, cur_time, t2_P);
-	} else {
+	} else if(task_num == 3){
 		add_to_list(active_task_list, 3, cur_time, t3_P);
 	}
 
@@ -387,7 +383,7 @@ int main(void)
 
 	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-	//xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+	xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -405,18 +401,8 @@ List* overdue_task_list;
 /*-----------------------------------------------------------*/
 static void DDS_Manager_Task( void *pvParameters )
 {
-	// IN THIS TASK WE WILL HAVE:
-	// DD task lists (Active, completed, & overdue)
-	// Timer
-	// Call DD_functions
-	// Hold the queues
 
-	int num;
-
-	//Task lists
-//	List* active_task_list = create_list();
-//	List* comp_task_list = create_list();
-//	List* overdue_task_list = create_list();
+	uint16_t num;
 
 	active_task_list = create_list();
 	comp_task_list = create_list();
@@ -425,8 +411,9 @@ static void DDS_Manager_Task( void *pvParameters )
 
 	while(1){
 
-		if(xQueueReceive(xQueue_GeneratedTasks_handle, &num, 500)){
+		if(xQueueReceive(xQueue_GeneratedTasks_handle, &num, 5000)){
 			//creates a dd_task struct, add adds it to the active list
+
 			create_and_add_to_list(active_task_list, num);
 			dd_task_count++;
 
@@ -453,8 +440,10 @@ static void DDS_Manager_Task( void *pvParameters )
 
 static void Generate_DD_Task1( void *pvParameters)
 {
+	uint16_t num = 1;
+
 	while(1){
-		if( xQueueSend(xQueue_GeneratedTasks_handle,&T1,1000)) {
+		if( xQueueSend(xQueue_GeneratedTasks_handle,&num,1000)) {
 			vTaskDelay(t1_P);
 			//vTaskDelay(3000); //test
 			//vTaskResume(monitor_handle); //allow task monitor to do one update cycle
@@ -465,8 +454,10 @@ static void Generate_DD_Task1( void *pvParameters)
 
 static void Generate_DD_Task2( void *pvParameters)
 {
+	uint16_t num = 2;
+
 	while(1){
-		if( xQueueSend(xQueue_GeneratedTasks_handle,&T2,1000)) {
+		if( xQueueSend(xQueue_GeneratedTasks_handle,&num,1000)) {
 			vTaskDelay(t2_P);
 			//vTaskDelay(3000); //test
 			//vTaskResume(monitor_handle); //allow task monitor to do one update cycle
@@ -477,8 +468,10 @@ static void Generate_DD_Task2( void *pvParameters)
 
 static void Generate_DD_Task3( void *pvParameters)
 {
+	uint16_t num = 3;
+
 	while(1){
-		if( xQueueSend(xQueue_GeneratedTasks_handle,&T3,1000)) {
+		if( xQueueSend(xQueue_GeneratedTasks_handle,&num,1000)) {
 			vTaskDelay(t3_P);
 			//vTaskDelay(3000); //test
 			//vTaskResume(monitor_handle); //allow task monitor to do one update cycle
