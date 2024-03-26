@@ -152,9 +152,10 @@ functionality.
 /*-----------------------------------------------------------*/
 #define mainQUEUE_LENGTH 1000
 
-#define green  	1
-#define red  	2
-#define blue  	3
+
+#define blue  	1
+#define green  	2
+#define red  	3
 
 #define green_led	LED4
 #define red_led		LED5
@@ -171,7 +172,7 @@ static void prvSetupHardware( void );
  * The queue send and receive tasks as described in the comments at the top of
  * this file.
  */
-static void Manager_Task( void *pvParameters );
+
 static void Blue_LED_User_Task( void *pvParameters );
 static void Green_LED_User_Task( void *pvParameters );
 static void Red_LED_User_Task( void *pvParameters );
@@ -185,33 +186,6 @@ static void Monitor_Task( void *pvParameters );
 xQueueHandle xQueue_GeneratedTasks_handle = 0;
 xQueueHandle xQueue_DisplayTask_handle = 0;
 xQueueHandle xQueue_CompTimeTask_handle = 0;
-
-
-/*-----------------------------------------------------------*/
-  // DD_TASK STRUCT
-typedef enum task_type task_type;
-enum task_type {PERIODIC, APERIODIC};
-
-typedef struct dd_task {
-//	TaskHandle_t t_handle;
-	task_type type;
-	uint32_t task_id;
-	uint32_t release_time;
-	uint32_t absolute_deadline;
-	uint32_t completion_time;
-} dd_task;
-
-// DD_TASK LIST STRUCT
-typedef struct dd_task_list {
-	struct dd_task task;
-	struct dd_task_list *next_task;
-	struct dd_task_list *prev_task;
-} dd_task_list;
-
-//Task lists
-struct dd_task_list active_task_list;
-struct dd_task_list comp_task_list;
-struct dd_task_list overdue_task_list;
 
 /*-----------------------------------------------------------*/
 // THIS IS WHERE YOU SET THE BENCHMARK VALUES
@@ -239,186 +213,136 @@ int test_if_received = 0;
 TaskHandle_t t1_handle;
 TaskHandle_t monitor_handle;
 
+/*-----------------------------------------------------------*/
+// THIS IS WHERE WE HAVE THE LNKED LIST CODE
+// https://www.geeksforgeeks.org/generic-linked-list-in-c-2/
+
+typedef struct Node {
+	uint32_t task_id;
+	uint32_t release_time;
+	uint32_t absolute_deadline;
+	uint32_t completion_time;
+    struct Node* next;
+} Node;
+
+typedef struct List {
+    int size;
+    Node* head;
+} List;
+
+List* create_list() {
+    List* new_list = (List*)malloc(sizeof(List));
+    new_list->size = 0;
+    new_list->head = NULL;
+    return new_list;
+}
+
+/*Function to swap the nodes */
+struct Node* swap(struct Node* ptr1, struct Node* ptr2)
+{
+    struct Node* tmp = ptr2->next;
+    ptr2->next = ptr1;
+    ptr1->next = tmp;
+    return ptr2;
+}
+
+/* Function to sort the list */
+void sortByDeadline(struct Node** head, int count)
+{
+    struct Node** h;
+    int i, j, swapped;
+
+    for (i = 0; i <= count; i++) {
+
+        h = head;
+        swapped = 0;
+
+        for (j = 0; j < count - i - 1; j++) {
+
+            struct Node* p1 = *h;
+            struct Node* p2 = p1->next;
+
+            if (p1->absolute_deadline > p2->absolute_deadline) {
+
+                /* update the link after swapping */
+                *h = swap(p1, p2);
+                swapped = 1;
+            }
+
+            h = &(*h)->next;
+        }
+
+        /* break if the loop ended without any swap */
+        if (swapped == 0)
+            break;
+    }
+}
+
+void add_to_list(List* list, uint32_t task_id, uint32_t release_time, int period) {
+    Node* new_node = (Node*)malloc(sizeof(Node));
+
+    new_node->task_id = task_id;
+    new_node->release_time = release_time;
+    new_node->absolute_deadline = release_time + period;
+    new_node->completion_time = 0;
+
+    new_node->next = list->head;
+    list->head = new_node;
+    list->size++;
+
+    sortByDeadline(&list->head, list->size);
+
+}
+
+void add_to_list_comp(List* list, uint32_t task_id, uint32_t release_time, int period, int completion_time) {
+    Node* new_node = (Node*)malloc(sizeof(Node));
+
+    new_node->task_id = task_id;
+    new_node->release_time = release_time;
+    new_node->absolute_deadline = release_time + period;
+    new_node->completion_time = completion_time;
+
+    new_node->next = list->head;
+    list->head = new_node;
+    list->size++;
+
+    sortByDeadline(&list->head, list->size);
+
+}
+
+
+void remove_from_list(List* list) {
+    if (list->size > 0) {
+		Node* node_to_remove = list->head;
+		list->head = node_to_remove->next;
+		free(node_to_remove);
+		list->size--;
+    }
+
+}
+
 
 /*-----------------------------------------------------------*/
   // Core Functions
 
 
-static void create_and_add_to_list(int task_num) {
+static void create_and_add_to_list(List* active_task_list, int task_num) {
 
+	uint32_t cur_time = xTaskGetTickCount();// * (1/configTICK_RATE_HZ) * 1000;
 
-
-	int cur_time = xTaskGetTickCount();// * (1/configTICK_RATE_HZ) * 1000;
-
-
-	struct dd_task* new_dd_task = (struct dd_task*)malloc(sizeof(struct dd_task));
-
+	// Adds task of given number to active list (will be put in order too)
 	if(task_num == 1){
-		new_dd_task->absolute_deadline = cur_time + t1_P;
-		//new_dd_task->completion_time = 0;
-		new_dd_task->release_time = cur_time;
-		//new_dd_task->t_handle =;
-		new_dd_task->task_id = 1;
-		new_dd_task->type = APERIODIC;
-	}
-	else if(task_num == 2){
-		new_dd_task->absolute_deadline = cur_time + t2_P;
-		//new_dd_task->completion_time = 0;
-		new_dd_task->release_time = cur_time;
-		//new_dd_task->t_handle =;
-		new_dd_task->task_id = 2;
-		new_dd_task->type = APERIODIC;
-	}
-	else if(task_num == 3){
-		new_dd_task->absolute_deadline = cur_time + t3_P;
-		//new_dd_task->completion_time = 0;
-		new_dd_task->release_time = cur_time;
-		//new_dd_task->t_handle =;
-		new_dd_task->task_id = 3;
-		new_dd_task->type = APERIODIC;
+		add_to_list(active_task_list, 1, cur_time, t1_P);
+	} else if(task_num == 2){
+		add_to_list(active_task_list, 2, cur_time, t2_P);
+	} else {
+		add_to_list(active_task_list, 3, cur_time, t3_P);
 	}
 
 
-	dd_task_list new_dd_task_list;
-	new_dd_task_list.next_task = NULL;
-	new_dd_task_list.prev_task = NULL;
-	new_dd_task_list.task = *new_dd_task;
-
-
-
-	if(&active_task_list.task != NULL){ //if empty list
-
-		active_task_list.next_task = NULL;
-		active_task_list.prev_task = NULL;
-		active_task_list.task = *new_dd_task;
-		dd_task_count++;
-	}
-	else { //if none empty list
-
-		struct dd_task_list current_task_list = active_task_list;
-		while(&active_task_list.task != NULL){
-			if (new_dd_task_list.task.absolute_deadline < current_task_list.task.absolute_deadline) {
-				//insert task into task list
-
-				new_dd_task_list.next_task = &current_task_list;
-				new_dd_task_list.prev_task = current_task_list.prev_task;
-
-
-				current_task_list.prev_task = &new_dd_task_list;
-				new_dd_task_list.prev_task->next_task = &new_dd_task_list;
-
-				dd_task_count++;
-
-			} else {
-				current_task_list = *current_task_list.next_task;
-			}
-		}
-	}
-
-	//free(new_dd_task); //TESTER
 
 }
 
-
-//static void compeleted_task_list_update(){
-//
-//	dd_task_list new_active_task_list = *active_task_list.next_task;
-//	new_active_task_list.prev_task = NULL;
-//
-//	active_task_list.next_task = &comp_task_list;
-//	comp_task_list.prev_task = &active_task_list;
-//
-//	comp_task_list = active_task_list;
-//
-//	active_task_list = new_active_task_list;
-//
-//	dd_task_comp_count++;
-//
-//	//comp_time_queue_update();
-//
-//	//test
-//	free(&comp_task_list);
-//
-//}
-//
-//
-//static void overdue_task_list_update(){
-//
-//	dd_task_list new_active_task_list = *active_task_list.next_task;
-//	new_active_task_list.prev_task = NULL;
-//
-//	active_task_list.next_task = &overdue_task_list;
-//	overdue_task_list.prev_task = &active_task_list;
-//
-//	overdue_task_list = active_task_list;
-//
-//	active_task_list = new_active_task_list;
-//
-//	dd_task_overdue_count++;
-//
-//	//comp_time_queue_update();
-//
-//	//test
-//	free(&overdue_task_list);
-//
-//}
-
-
-static void compeleted_task_list_update(){
-
-		dd_task_list new_active_task_list = *active_task_list.next_task;
-		free(new_active_task_list.prev_task);
-		new_active_task_list.prev_task = NULL;
-
-
-		active_task_list = new_active_task_list;
-
-		dd_task_comp_count++;
-
-		//comp_time_queue_update();
-
-}
-
-
-static void overdue_task_list_update(){
-
-	dd_task_list new_active_task_list = *active_task_list.next_task;
-	free(new_active_task_list.prev_task);
-	new_active_task_list.prev_task = NULL;
-
-	active_task_list = new_active_task_list;
-
-
-
-	dd_task_overdue_count++;
-
-	//comp_time_queue_update();
-
-
-}
-
-void comp_time_queue_update(){
-
-	int cur_time = xTaskGetTickCount();
-
-	xQueueSend(xQueue_CompTimeTask_handle,&cur_time,1000);
-
-
-}
-
-static int release_dd_task(){
-	return 0;
-}
-
-static int complete_dd_task(){
-	return 0;
-}
-
-void get_active_dd_task_list(){}
-
-void get_completed_dd_task_list(){}
-
-void get_overdue_dd_task_list(){}
 
 
 /*-----------------------------------------------------------*/
@@ -454,8 +378,6 @@ int main(void)
 	vQueueAddToRegistry( xQueue_DisplayTask_handle, "Display_Tasks_Queue" );
 	vQueueAddToRegistry( xQueue_CompTimeTask_handle, "Completion_Time_Tasks_Queue" );
 
-
-	//xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, &t1_handle);
 	xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
@@ -465,7 +387,7 @@ int main(void)
 
 	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-	xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+	//xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -473,6 +395,10 @@ int main(void)
 	return 0;
 }
 
+//Task lists
+List* active_task_list;
+List* comp_task_list;
+List* overdue_task_list;
 
 /*-----------------------------------------------------------*/
 // DDS TASK
@@ -487,30 +413,26 @@ static void DDS_Manager_Task( void *pvParameters )
 
 	int num;
 
+	//Task lists
+//	List* active_task_list = create_list();
+//	List* comp_task_list = create_list();
+//	List* overdue_task_list = create_list();
+
+	active_task_list = create_list();
+	comp_task_list = create_list();
+	overdue_task_list = create_list();
+
 
 	while(1){
 
 		if(xQueueReceive(xQueue_GeneratedTasks_handle, &num, 500)){
 			//creates a dd_task struct, add adds it to the active list
-			create_and_add_to_list(num);
+			create_and_add_to_list(active_task_list, num);
+			dd_task_count++;
 
 			vTaskResume(monitor_handle); //allow task monitor to do one update cycle
 
 		}
-
-
-
-		uint16_t released_task_info = release_dd_task();
-
-		uint16_t completed_task_info = complete_dd_task();
-
-		get_active_dd_task_list();
-
-		get_completed_dd_task_list();
-
-		get_overdue_dd_task_list();
-
-
 
 	}
 
@@ -572,35 +494,37 @@ static void Generate_DD_Task3( void *pvParameters)
 static void Monitor_Task( void *pvParameters )
 {
 
+		uint16_t current_task;
+		uint16_t comp_time;
 
 	while(1){
 
 
-
-		//get id of the first task in the active list
-		uint16_t task_num = active_task_list.task.task_id;
-		//task_num = (task_num%3) + 1;
-
-		uint16_t comp_time;
+		current_task = active_task_list->head->task_id;
 
 		//send the first task to the task display queue
-		xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
+		xQueueSend(xQueue_DisplayTask_handle,&current_task,1000);
 
 		vTaskSuspend(NULL);
 
 		//wait for the response from the task finished queue
 		xQueueReceive(xQueue_CompTimeTask_handle, &comp_time, 1000);
 
+		if(comp_time <= active_task_list->head->absolute_deadline){
+			// add to comp and add the task execution time to the finished task
+			add_to_list_comp(comp_task_list, active_task_list->head->task_id, active_task_list->head->release_time, t1_P, comp_time);
+			dd_task_comp_count++;
 
-		//update the lists and add the task execution time to the finished task
-		active_task_list.task.completion_time = comp_time;
+			// remove from active
+			remove_from_list(active_task_list);
 
-		if(comp_time <= active_task_list.task.absolute_deadline){
-			// remove from active and add to comp
-			compeleted_task_list_update();
 		} else {
-			// remove from active and add to overdue
-			overdue_task_list_update();
+			// add to overdue and add the task execution time to the finished task
+			add_to_list_comp(overdue_task_list, active_task_list->head->task_id, active_task_list->head->release_time, t1_P, comp_time);
+			dd_task_overdue_count++;
+
+			// remove from active
+			remove_from_list(active_task_list);
 
 		}
 
@@ -608,37 +532,6 @@ static void Monitor_Task( void *pvParameters )
 	}
 
 }
-
-
-/*-----------------------------------------------------------*/
-//static void Manager_Task( void *pvParameters )
-//{
-//	uint16_t tx_data = green;
-//
-//
-//	while(1)
-//	{
-//
-//		if(tx_data == green)
-//			STM_EVAL_LEDOn(green_led);
-//		if(tx_data == red)
-//			STM_EVAL_LEDOn(red_led);
-//		if(tx_data == blue)
-//			STM_EVAL_LEDOn(blue_led);
-//
-//		if( xQueueSend(xQueue_handle,&tx_data,1000))
-//		{
-//			printf("Manager: %u ON!\n", tx_data);
-//			if(++tx_data == 4)
-//				tx_data = 1;
-//			vTaskDelay(1000);
-//		}
-//		else
-//		{
-//			printf("Manager Failed!\n");
-//		}
-//	}
-//}
 
 
 /*-----------------------------------------------------------*/
@@ -668,7 +561,7 @@ static void Blue_LED_User_Task( void *pvParameters )
 				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
 				vTaskResume(monitor_handle);
 			} else {
-				//xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
+				xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
 			}
 
 
@@ -705,7 +598,7 @@ static void Green_LED_User_Task( void *pvParameters )
 				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
 				vTaskResume(monitor_handle);
 			} else {
-				//xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
+				xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
 			}
 
 
@@ -742,7 +635,7 @@ static void Red_LED_User_Task( void *pvParameters )
 				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
 				vTaskResume(monitor_handle);
 			} else {
-				//xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
+				xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
 			}
 
 		}
