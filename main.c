@@ -138,6 +138,7 @@ functionality.
 #include <stdint.h>
 #include <stdio.h>
 #include "stm32f4_discovery.h"
+#include <stdlib.h> //for the free
 /* Kernel includes. */
 #include "stm32f4xx.h"
 #include "../FreeRTOS_Source/include/FreeRTOS.h"
@@ -258,7 +259,7 @@ static void create_and_add_to_list(int task_num) {
 		new_dd_task->release_time = cur_time;
 		//new_dd_task->t_handle =;
 		new_dd_task->task_id = 1;
-		new_dd_task->type = PERIODIC;
+		new_dd_task->type = APERIODIC;
 	}
 	else if(task_num == 2){
 		new_dd_task->absolute_deadline = cur_time + t2_P;
@@ -266,7 +267,7 @@ static void create_and_add_to_list(int task_num) {
 		new_dd_task->release_time = cur_time;
 		//new_dd_task->t_handle =;
 		new_dd_task->task_id = 2;
-		new_dd_task->type = PERIODIC;
+		new_dd_task->type = APERIODIC;
 	}
 	else if(task_num == 3){
 		new_dd_task->absolute_deadline = cur_time + t3_P;
@@ -274,7 +275,7 @@ static void create_and_add_to_list(int task_num) {
 		new_dd_task->release_time = cur_time;
 		//new_dd_task->t_handle =;
 		new_dd_task->task_id = 3;
-		new_dd_task->type = PERIODIC;
+		new_dd_task->type = APERIODIC;
 	}
 
 
@@ -313,24 +314,68 @@ static void create_and_add_to_list(int task_num) {
 			}
 		}
 	}
+
+	//free(new_dd_task); //TESTER
+
 }
+
+
+//static void compeleted_task_list_update(){
+//
+//	dd_task_list new_active_task_list = *active_task_list.next_task;
+//	new_active_task_list.prev_task = NULL;
+//
+//	active_task_list.next_task = &comp_task_list;
+//	comp_task_list.prev_task = &active_task_list;
+//
+//	comp_task_list = active_task_list;
+//
+//	active_task_list = new_active_task_list;
+//
+//	dd_task_comp_count++;
+//
+//	//comp_time_queue_update();
+//
+//	//test
+//	free(&comp_task_list);
+//
+//}
+//
+//
+//static void overdue_task_list_update(){
+//
+//	dd_task_list new_active_task_list = *active_task_list.next_task;
+//	new_active_task_list.prev_task = NULL;
+//
+//	active_task_list.next_task = &overdue_task_list;
+//	overdue_task_list.prev_task = &active_task_list;
+//
+//	overdue_task_list = active_task_list;
+//
+//	active_task_list = new_active_task_list;
+//
+//	dd_task_overdue_count++;
+//
+//	//comp_time_queue_update();
+//
+//	//test
+//	free(&overdue_task_list);
+//
+//}
 
 
 static void compeleted_task_list_update(){
 
-	dd_task_list new_active_task_list = *active_task_list.next_task;
-	new_active_task_list.prev_task = NULL;
+		dd_task_list new_active_task_list = *active_task_list.next_task;
+		free(new_active_task_list.prev_task);
+		new_active_task_list.prev_task = NULL;
 
-	active_task_list.next_task = &comp_task_list;
-	comp_task_list.prev_task = &active_task_list;
 
-	comp_task_list = active_task_list;
+		active_task_list = new_active_task_list;
 
-	active_task_list = new_active_task_list;
+		dd_task_comp_count++;
 
-	dd_task_comp_count++;
-
-	comp_time_queue_update();
+		//comp_time_queue_update();
 
 }
 
@@ -338,21 +383,19 @@ static void compeleted_task_list_update(){
 static void overdue_task_list_update(){
 
 	dd_task_list new_active_task_list = *active_task_list.next_task;
+	free(new_active_task_list.prev_task);
 	new_active_task_list.prev_task = NULL;
-
-	active_task_list.next_task = &overdue_task_list;
-	overdue_task_list.prev_task = &active_task_list;
-
-	overdue_task_list = active_task_list;
 
 	active_task_list = new_active_task_list;
 
+
+
 	dd_task_overdue_count++;
 
-	comp_time_queue_update();
+	//comp_time_queue_update();
+
 
 }
-
 
 void comp_time_queue_update(){
 
@@ -536,7 +579,7 @@ static void Monitor_Task( void *pvParameters )
 
 		//get id of the first task in the active list
 		uint16_t task_num = active_task_list.task.task_id;
-		task_num = (task_num%3) + 1;
+		//task_num = (task_num%3) + 1;
 
 		uint16_t comp_time;
 
