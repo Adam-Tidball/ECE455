@@ -385,12 +385,12 @@ int main(void)
 	vQueueAddToRegistry( xQueue_DisplayTask_handle, "Display_Tasks_Queue" );
 	vQueueAddToRegistry( xQueue_CompTimeTask_handle, "Completion_Time_Tasks_Queue" );
 
-	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 2, &t1_handle);
-	xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 2, &t2_handle);
-	xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 2, &t3_handle);
+	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 3, &t1_handle);
+	xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 3, &t2_handle);
+	xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 3, &t3_handle);
 
-	xTaskCreate( DDS_Manager_Task, "DDS_Manager", configMINIMAL_STACK_SIZE, NULL, 3, NULL);
-	xTaskCreate( Monitor_Task, "Monitor_Task", configMINIMAL_STACK_SIZE, NULL, 2, &monitor_handle);
+	xTaskCreate( DDS_Manager_Task, "DDS_Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+	xTaskCreate( Monitor_Task, "Monitor_Task", configMINIMAL_STACK_SIZE, NULL, 3, &monitor_handle);
 
 	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 4, NULL);
 	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 4, NULL);
@@ -563,10 +563,16 @@ static void Blue_LED_User_Task( void *pvParameters )
 		STM_EVAL_LEDOff(blue_led);
 
 		//once the task is finished, sent the comp time to comp queue
-		comp_time = dd_task_comp_count * t1_ET;
+		comp_time = xTaskGetTickCount();
+		//comp_time = dd_task_comp_count * t1_ET;
 
 		xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
 		vTaskResume(monitor_handle);
+
+		printf("size of active list: %d\n", active_task_list->size);
+		printf("size of comp list: %d\n", comp_task_list->size);
+		printf("size of overdue list: %d\n", overdue_task_list->size);
+
 
 //		//wait for new task in the display queue
 //		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
@@ -611,7 +617,8 @@ static void Green_LED_User_Task( void *pvParameters )
 		STM_EVAL_LEDOff(green_led);
 
 		//once the task is finished, sent the comp time to comp queue
-		comp_time = dd_task_comp_count * t2_ET;
+		comp_time = xTaskGetTickCount();
+		//comp_time = dd_task_comp_count * t2_ET;
 
 		xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
 		vTaskResume(monitor_handle);
@@ -659,7 +666,8 @@ static void Red_LED_User_Task( void *pvParameters )
 		STM_EVAL_LEDOff(red_led);
 
 		//once the task is finished, sent the comp time to comp queue
-		comp_time = dd_task_comp_count * t3_ET;
+		comp_time = xTaskGetTickCount();
+		//comp_time = dd_task_comp_count * t3_ET;
 
 		xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
 		vTaskResume(monitor_handle);
