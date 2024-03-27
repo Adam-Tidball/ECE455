@@ -196,6 +196,9 @@ int t2_P = 500;
 int t3_ET = 250;
 int t3_P = 750;
 
+
+int global_cur_time = 0;
+
 int dd_task_count = 0;
 int dd_task_comp_count = 0;
 int dd_task_overdue_count = 0;
@@ -207,6 +210,8 @@ int test_if_received = 0;
 
 
 TaskHandle_t t1_handle;
+TaskHandle_t t2_handle;
+TaskHandle_t t3_handle;
 TaskHandle_t monitor_handle;
 
 /*-----------------------------------------------------------*/
@@ -225,6 +230,12 @@ typedef struct List {
     int size;
     Node* head;
 } List;
+
+
+//Task lists
+List* active_task_list;
+List* comp_task_list;
+List* overdue_task_list;
 
 List* create_list() {
     List* new_list = (List*)malloc(sizeof(List));
@@ -302,7 +313,7 @@ void add_to_list_comp(List* list, uint32_t task_id, uint32_t release_time, int p
     list->head = new_node;
     list->size++;
 
-    sortByDeadline(&list->head, list->size);
+    //sortByDeadline(&list->head, list->size);
 
 }
 
@@ -324,15 +335,15 @@ void remove_from_list(List* list) {
 
 static void create_and_add_to_list(List* active_task_list, int task_num) {
 
-	uint32_t cur_time = xTaskGetTickCount();// * (1/configTICK_RATE_HZ) * 1000;
+	global_cur_time = xTaskGetTickCount();// * (1/configTICK_RATE_HZ) * 1000;
 
 	// Adds task of given number to active list (will be put in order too)
 	if(task_num == 1){
-		add_to_list(active_task_list, 1, cur_time, t1_P);
+		add_to_list(active_task_list, 1, global_cur_time, t1_P);
 	} else if(task_num == 2){
-		add_to_list(active_task_list, 2, cur_time, t2_P);
+		add_to_list(active_task_list, 2, global_cur_time, t2_P);
 	} else if(task_num == 3){
-		add_to_list(active_task_list, 3, cur_time, t3_P);
+		add_to_list(active_task_list, 3, global_cur_time, t3_P);
 	}
 
 
@@ -374,16 +385,16 @@ int main(void)
 	vQueueAddToRegistry( xQueue_DisplayTask_handle, "Display_Tasks_Queue" );
 	vQueueAddToRegistry( xQueue_CompTimeTask_handle, "Completion_Time_Tasks_Queue" );
 
-	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, &t1_handle);
-	xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Blue_LED_User_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 2, &t1_handle);
+	xTaskCreate( Green_LED_User_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 2, &t2_handle);
+	xTaskCreate( Red_LED_User_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 2, &t3_handle);
 
-	xTaskCreate( DDS_Manager_Task, "DDS_Manager", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Monitor_Task, "Monitor_Task", configMINIMAL_STACK_SIZE, NULL, 1, &monitor_handle);
+	xTaskCreate( DDS_Manager_Task, "DDS_Manager", configMINIMAL_STACK_SIZE, NULL, 3, NULL);
+	xTaskCreate( Monitor_Task, "Monitor_Task", configMINIMAL_STACK_SIZE, NULL, 2, &monitor_handle);
 
-	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-	xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+	xTaskCreate( Generate_DD_Task1, "Generate_DD_Task1", configMINIMAL_STACK_SIZE, NULL, 4, NULL);
+	xTaskCreate( Generate_DD_Task2, "Generate_DD_Task2", configMINIMAL_STACK_SIZE, NULL, 4, NULL);
+	xTaskCreate( Generate_DD_Task3, "Generate_DD_Task3", configMINIMAL_STACK_SIZE, NULL, 4, NULL);
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -391,10 +402,6 @@ int main(void)
 	return 0;
 }
 
-//Task lists
-List* active_task_list;
-List* comp_task_list;
-List* overdue_task_list;
 
 /*-----------------------------------------------------------*/
 // DDS TASK
@@ -408,6 +415,7 @@ static void DDS_Manager_Task( void *pvParameters )
 	comp_task_list = create_list();
 	overdue_task_list = create_list();
 
+	//vTaskDelay(10);
 
 	while(1){
 
@@ -446,7 +454,6 @@ static void Generate_DD_Task1( void *pvParameters)
 		if( xQueueSend(xQueue_GeneratedTasks_handle,&num,1000)) {
 			vTaskDelay(t1_P);
 			//vTaskDelay(3000); //test
-			//vTaskResume(monitor_handle); //allow task monitor to do one update cycle
 		}
 	}
 
@@ -460,7 +467,6 @@ static void Generate_DD_Task2( void *pvParameters)
 		if( xQueueSend(xQueue_GeneratedTasks_handle,&num,1000)) {
 			vTaskDelay(t2_P);
 			//vTaskDelay(3000); //test
-			//vTaskResume(monitor_handle); //allow task monitor to do one update cycle
 		}
 	}
 
@@ -474,7 +480,6 @@ static void Generate_DD_Task3( void *pvParameters)
 		if( xQueueSend(xQueue_GeneratedTasks_handle,&num,1000)) {
 			vTaskDelay(t3_P);
 			//vTaskDelay(3000); //test
-			//vTaskResume(monitor_handle); //allow task monitor to do one update cycle
 		}
 	}
 
@@ -488,15 +493,29 @@ static void Monitor_Task( void *pvParameters )
 {
 
 		uint16_t current_task;
+		uint16_t current_p;
 		uint16_t comp_time;
+
+
 
 	while(1){
 
-
 		current_task = active_task_list->head->task_id;
 
+		if (current_task == 1) {
+			vTaskResume(t1_handle);
+			current_p = t1_P;
+		} else if (current_task == 2) {
+			vTaskResume(t2_handle);
+			current_p = t2_P;
+		} else if (current_task == 3){
+			vTaskResume(t3_handle);
+			current_p = t3_P;
+		}
+
+
 		//send the first task to the task display queue
-		xQueueSend(xQueue_DisplayTask_handle,&current_task,1000);
+		//xQueueSend(xQueue_DisplayTask_handle,&current_task,1000);
 
 		vTaskSuspend(NULL);
 
@@ -505,7 +524,7 @@ static void Monitor_Task( void *pvParameters )
 
 		if(comp_time <= active_task_list->head->absolute_deadline){
 			// add to comp and add the task execution time to the finished task
-			add_to_list_comp(comp_task_list, active_task_list->head->task_id, active_task_list->head->release_time, t1_P, comp_time);
+			add_to_list_comp(comp_task_list, active_task_list->head->task_id, active_task_list->head->release_time, current_p, comp_time);
 			dd_task_comp_count++;
 
 			// remove from active
@@ -513,7 +532,7 @@ static void Monitor_Task( void *pvParameters )
 
 		} else {
 			// add to overdue and add the task execution time to the finished task
-			add_to_list_comp(overdue_task_list, active_task_list->head->task_id, active_task_list->head->release_time, t1_P, comp_time);
+			add_to_list_comp(overdue_task_list, active_task_list->head->task_id, active_task_list->head->release_time, current_p, comp_time);
 			dd_task_overdue_count++;
 
 			// remove from active
@@ -537,28 +556,39 @@ static void Blue_LED_User_Task( void *pvParameters )
 
 	while(1)
 	{
+		vTaskSuspend(NULL);
 
-		//wait for new task in the display queue
-		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
+		STM_EVAL_LEDOn(blue_led);
+		vTaskDelay(t1_ET);
+		STM_EVAL_LEDOff(blue_led);
 
-			test_if_received = 10000;
+		//once the task is finished, sent the comp time to comp queue
+		comp_time = dd_task_comp_count * t1_ET;
 
-			if(task_num == 1){
-				STM_EVAL_LEDOn(blue_led);
-				vTaskDelay(t1_ET);
-				STM_EVAL_LEDOff(blue_led);
+		xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
+		vTaskResume(monitor_handle);
 
-				//once the task is finished, sent the comp time to comp queue
-				comp_time = xTaskGetTickCount();
+//		//wait for new task in the display queue
+//		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
+//
+//			test_if_received = 10000;
+//
+//			if(task_num == 1){
+//				STM_EVAL_LEDOn(blue_led);
+//				vTaskDelay(t1_ET);
+//				STM_EVAL_LEDOff(blue_led);
+//
+//				//once the task is finished, sent the comp time to comp queue
+//				comp_time = xTaskGetTickCount();
+//
+//				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
+//				vTaskResume(monitor_handle);
+//			} else {
+//				xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
+//			}
 
-				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
-				vTaskResume(monitor_handle);
-			} else {
-				xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
-			}
 
-
-		}
+//		}
 
 
 
@@ -574,29 +604,40 @@ static void Green_LED_User_Task( void *pvParameters )
 
 	while(1)
 	{
+		vTaskSuspend(NULL);
 
-		//wait for new task in the display queue
-		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
+		STM_EVAL_LEDOn(green_led);
+		vTaskDelay(t2_ET);
+		STM_EVAL_LEDOff(green_led);
 
-			test_if_received = 10000;
+		//once the task is finished, sent the comp time to comp queue
+		comp_time = dd_task_comp_count * t2_ET;
 
-			if(task_num == 2){
-				STM_EVAL_LEDOn(green_led);
-				vTaskDelay(t2_ET);
-				STM_EVAL_LEDOff(green_led);
+		xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
+		vTaskResume(monitor_handle);
 
-				//once the task is finished, sent the comp time to comp queue
-				comp_time = xTaskGetTickCount();
-
-				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
-				vTaskResume(monitor_handle);
-			} else {
-				xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
-			}
-
-
-
-		}
+//		//wait for new task in the display queue
+//		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
+//
+//			test_if_received = 10000;
+//
+//			if(task_num == 2){
+//				STM_EVAL_LEDOn(green_led);
+//				vTaskDelay(t2_ET);
+//				STM_EVAL_LEDOff(green_led);
+//
+//				//once the task is finished, sent the comp time to comp queue
+//				comp_time = xTaskGetTickCount();
+//
+//				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
+//				vTaskResume(monitor_handle);
+//			} else {
+//				xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
+//			}
+//
+//
+//
+//		}
 
 
 
@@ -611,27 +652,37 @@ static void Red_LED_User_Task( void *pvParameters )
 
 	while(1)
 	{
+		vTaskSuspend(NULL);
 
-		//wait for new task in the display queue
-		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
+		STM_EVAL_LEDOn(red_led);
+		vTaskDelay(t3_ET);
+		STM_EVAL_LEDOff(red_led);
 
-			test_if_received = 10000;
+		//once the task is finished, sent the comp time to comp queue
+		comp_time = dd_task_comp_count * t3_ET;
 
-			if(task_num == 3){
-				STM_EVAL_LEDOn(red_led);
-				vTaskDelay(t3_ET);
-				STM_EVAL_LEDOff(red_led);
-
-				//once the task is finished, sent the comp time to comp queue
-				comp_time = xTaskGetTickCount();
-
-				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
-				vTaskResume(monitor_handle);
-			} else {
-				xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
-			}
-
-		}
+		xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
+		vTaskResume(monitor_handle);
+//		//wait for new task in the display queue
+//		if(xQueueReceive(xQueue_DisplayTask_handle,&task_num,1000)){
+//
+//			test_if_received = 10000;
+//
+//			if(task_num == 3){
+//				STM_EVAL_LEDOn(red_led);
+//				vTaskDelay(t3_ET);
+//				STM_EVAL_LEDOff(red_led);
+//
+//				//once the task is finished, sent the comp time to comp queue
+//				comp_time = xTaskGetTickCount();
+//
+//				xQueueSend(xQueue_CompTimeTask_handle,&comp_time,1000);
+//				vTaskResume(monitor_handle);
+//			} else {
+//				xQueueSend(xQueue_DisplayTask_handle,&task_num,1000);
+//			}
+//
+//		}
 
 
 
